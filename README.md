@@ -1,67 +1,42 @@
-🎧 Économiseur d’écran dynamique basé sur mes musiques Spotify
-Ce projet consiste à créer un économiseur d’écran animé qui réagit aux musiques que j’écoute sur Spotify.
+📝 Proposition de README enrichi
 
-🚀 Étape 1 — Setup du projet
+⚠️ Ne jamais commit vos secrets ( est ignoré via ).
 
-Initialiser le projet Electron
-Configurer le système de build
-Créer les fichiers de base
+🚀 Installation & Lancement
+Backend
 
+Le backend démarre sur .
+Première étape : ouvrez  pour authentifier votre compte Spotify. Le token est ensuite sauvegardé dans .
+Frontend
 
-🔐 Étape 2 — Auth Spotify
+Le frontend Electron s’ouvre en fullscreen et affiche vos musiques en cours de lecture.
 
-Créer une application sur le Spotify Developer Dashboard
-Mettre en place l’authentification OAuth2
+📦 Build & Release
+Compiler le backend
 
+Le binaire est généré dans .
+Packager le frontend
 
-🎵 Étape 3 — Récupération des morceaux en cours
+Vous obtenez un exécutable Electron dans .
 
-Appeler l’API Spotify pour obtenir :
-le titre du morceau
-l’artiste
-la pochette de l’album
+🌟 Fonctionnalités
+• 	Authentification Spotify OAuth2
+• 	Récupération du morceau en cours (titre, artiste, pochette)
+• 	Extraction des couleurs dominantes de la pochette
+• 	UI fullscreen animée
+• 	Rafraîchissement dynamique quand la musique change
+• 	Persistance du token pour éviter de se reconnecter à chaque lancement
 
+🔮 Roadmap
+• 	🎨 Fond dynamique basé sur les couleurs de la pochette
+• 	🔊 Visualiseur audio synchronisé
+• 	🌙 Intégration comme économiseur d’écran système
+• 	🎭 Thèmes et transitions personnalisés
 
+🤝 Contribution
+Les PR sont les bienvenues !
+Merci de respecter la structure du projet et d’ajouter une documentation claire pour vos ajouts.
 
-
-🎨 Étape 4 — Extraction des couleurs
-
-Utiliser node-vibrant pour extraire les couleurs dominantes de la pochette
-
-
-🖼️ Étape 5 — Création de l’UI
-
-Fond coloré adaptatif
-Affichage de la pochette
-Titre / artiste
-Animations
-
-
-🔄 Étape 6 — Rafraîchissement dynamique
-
-Mettre à jour automatiquement l’affichage lorsque le morceau change
-
-
-🌙 Étape 7 — Mode Économiseur
-
-Plein écran
-Désactivation des interactions
-Intégration aux systèmes (Windows / Linux)
-
-
-🧪 Étape 8 — Tests & Packaging
-
-Tests sur Windows et Linux
-Création des builds :
-.exe
-.AppImage
-
-
-
-
-⭐ Étape 9 — Bonus
-
-Visualiseur audio
-Thèmes dynamiques
-Transitions
-Support d’autres sources de lecture
+⚠️ Licence
+Projet personnel — usage libre pour tests et inspiration.
+Spotify est une marque déposée de Spotify AB.
