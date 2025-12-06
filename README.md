@@ -1,5 +1,3 @@
-Parfait Evan 👌, voici une version complète et mise à jour de ton **README global** pour GitHub. Elle reprend ton contenu initial mais enrichi avec les sections essentielles (description, installation, configuration, build, roadmap, contribution, licence).  
-
 ---
 
 # 🎧 Vinyl-View — Économiseur d’écran Spotify
