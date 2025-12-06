@@ -1,16 +1,37 @@
 body {
     margin: 0;
-    background-color: black;
+    padding: 0;
+    background-color: #121212;
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
 }
 
-#text {
-    color: white;
-    font-size: 4em;
-    font-family: Arial, sans-serif;
+#player {
+    text-align: center;
 }
 
-/*test*/
+#cover {
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    margin-bottom: 20px;
+}
+
+#title {
+    font-size: 2em;
+    margin: 0;
+}
+
+#artist {
+    font-size: 1.5em;
+    margin: 5px 0;
+    color: #1db954;
+}
+
+#album {
+    font-size: 1em;
+    color: #ccc;
+}
