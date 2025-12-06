@@ -1,0 +1,14 @@
+# Backend
+/backend/target
+/backend/token.json
+/backend/.env
+
+# Frontend
+/frontend/node_modules
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
