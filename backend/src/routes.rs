@@ -9,7 +9,40 @@ pub fn login_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp:
     let login_spotify = spotify.clone();
     warp::path("login").map(move || {
         let url = login_spotify.get_authorize_url(false).unwrap();
-        format!("Open this URL in your browser:\n\n{}", url)
+        warp::reply::html(format!(
+            r#"
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <title>Redirection Spotify</title>
+                <script>
+                  window.location.href = "{url}";
+                </script>
+              </head>
+              <body>
+                <p>Redirection vers Spotify...</p>
+              </body>
+            </html>
+            "#,
+            url = url
+        ))
+    })
+}
+pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let status_spotify = spotify.clone();
+    warp::path("status").and_then(move || {
+        let status_spotify = status_spotify.clone();
+        async move {
+            let token_guard = status_spotify.token.lock().await;
+            let status = match token_guard {
+                Ok(guard) => match guard.as_ref() {
+                    Some(token) if !token.is_expired() => "ready",
+                    _ => "auth required",
+                },
+                Err(_) => "auth required",
+            };
+            Ok::<_, warp::reject::Rejection>(warp::reply::json(&status))
+        }
     })
 }
 
@@ -27,9 +60,13 @@ pub fn callback_route(spotify: AuthCodeSpotify, token_path: &'static str) -> imp
                             save_token_to_file(token_path, token).await;
                         }
                     }
-                    Ok::<_, warp::reject::Rejection>(warp::reply::html("Auth success. You can close this tab."))
+                    let reply: Box<dyn warp::Reply> = Box::new(warp::redirect::temporary(
+                        warp::http::Uri::from_static("/done"),
+                    ));
+                    Ok::<_, warp::reject::Rejection>(reply)
                 } else {
-                    Ok::<_, warp::reject::Rejection>(warp::reply::html("Missing code"))
+                    let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Missing code"));
+                    Ok::<_, warp::reject::Rejection>(reply)
                 }
             }
         })
@@ -68,5 +105,19 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
 
             Ok::<_, warp::reject::Rejection>(warp::reply::json(&track_info))
         }
+    })
+}
+
+pub fn done_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("done").map(|| {
+        warp::reply::html(r#"
+            <html>
+              <head><title>Connexion réussie</title></head>
+              <body>
+                <h2>Connexion réussie à Spotify</h2>
+                <p>Vous pouvez fermer cette fenêtre.</p>
+              </body>
+            </html>
+        "#)
     })
 }
