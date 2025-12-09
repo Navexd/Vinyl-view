@@ -2,11 +2,15 @@ mod auth;
 mod routes;
 mod models;
 mod token;
+mod logger;
 
 
-use routes::{login_route, callback_route, now_playing_route, done_route,status_route};
+use routes::{login_route, callback_route, now_playing_route, done_route, status_route};
 use token::load_token_from_file;
+use logger::log_to_file;
 use warp::Filter;
+
+
 
 #[tokio::main]
 async fn main() {
@@ -26,7 +30,7 @@ async fn main() {
         .or(done_route());
 
 
-    
+    log_to_file("✅ Backend lancé, en attente sur http://127.0.0.1:3000");
     println!("✅ Backend lancé, en attente sur http://127.0.0.1:3000");
     warp::serve(routes).run(([127, 0, 0, 1], 3000)).await;
 }
