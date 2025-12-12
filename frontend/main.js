@@ -1,96 +1,151 @@
+// main.js
 const { app, BrowserWindow } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
-const http = require('http');
 const fs = require('fs');
 
-let backend; // référence globale au process backend
+// --- Compat electron-is-dev robuste (gère CommonJS et ESModule interop) ---
+const _isDevRaw = require('electron-is-dev');
+const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDevRaw)
+    ? _isDevRaw.default
+    : _isDevRaw;
 
-function waitForBackend(url, timeout = 2500) {
-    return new Promise((resolve, reject) => {
-        const start = Date.now();
-        const check = () => {
-            http.get(url, (res) => {
-                if (res.statusCode === 200) {
-                    resolve(true);
-                } else {
-                    retry();
-                }
-            }).on('error', retry);
-        };
+// --- Variables globals ---
+let backend;
+let win;
 
-        const retry = () => {
-            if (Date.now() - start > timeout) {
-                reject(new Error('Backend not ready'));
-            } else {
-                setTimeout(check, 300);
-            }
-        };
+//
+// -------- LOG SYSTEM --------
+//
 
-        check();
-    });
-}
-
-function createWindow () {
-    return new BrowserWindow({
-        fullscreen: true,
-        frame: false,
-        backgroundColor: '#000000',
-        webPreferences: {
-            nodeIntegration: true
-        }
-    });
-}
-
-// ✅ Redirection des logs vers log/electron.log avec timestamp
-const logDir = path.join(process.cwd(), 'log');
+// On crée le dossier log dans process.cwd() (pas dans app.asar)
+const logDir = path.join(process.cwd(), "log");
 if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
+    try {
+        fs.mkdirSync(logDir);
+    } catch (e) {
+        console.error("Erreur création logDir:", e);
+    }
 }
-const logPath = path.join(logDir, 'electron.log');
 
-function logToFile(msg) {
-    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
-    fs.appendFileSync(logPath, `[${timestamp}] ${msg}\n`);
-}
-console.log = logToFile;
-console.error = logToFile;
+const logFile = path.join(logDir, "electron.log");
 
-app.whenReady().then(async () => {
-    const backendPath = path.join(__dirname, 'backend', 'backend.exe');
-    backend = spawn(backendPath, { stdio: 'pipe' });
-
-    backend.stdout.on('data', (data) => {
-        console.log(`Backend: ${data}`);
-    });
-
-    backend.stderr.on('data', (data) => {
-        console.error(`Backend error: ${data}`);
-    });
-
-    const win = createWindow();
+// Fonction log sécurisée
+function log(...args) {
+    const safe = args.map(a => {
+        try {
+            if (typeof a === "string") return a;
+            return JSON.stringify(a);
+        } catch {
+            return String(a);
+        }
+    }).join(" ");
 
     try {
-        await waitForBackend('http://127.0.0.1:3000/login');
-        console.log("🚀 App Electron lancée, backend prêt");
-        win.loadURL('http://127.0.0.1:3000/login');
+        fs.appendFileSync(logFile, safe + "\n");
+    } catch (e) {
+        console.error("LOG ERROR:", e);
+    }
 
-        win.webContents.on('did-navigate', (event, url) => {
-            if (url.includes('/done')) {
-                console.log("✅ Navigation vers /done → chargement économiseur");
-                win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-            }
-        });
-    } catch (err) {
-        console.error('Backend did not respond in time:', err);
-        win.loadFile(path.join(__dirname, 'renderer', 'index.html')); // fallback
+    console.log(safe);
+}
+
+log("=== Electron démarré ===");
+log("isDev (raw):", _isDevRaw);
+log("isDev (bool):", !!isDev);
+log("__dirname:", __dirname);
+log("process.resourcesPath:", process.resourcesPath);
+
+//
+// -------- PATHS --------
+//
+function getRendererPath() {
+    return isDev
+        ? path.join(__dirname, "renderer", "index.html")
+        : path.join(process.resourcesPath, "renderer", "index.html");
+}
+
+function getBackendPath() {
+    return isDev
+        ? path.join(__dirname, "backend", "backend.exe")
+        : path.join(process.resourcesPath, "backend", "backend.exe");
+}
+
+//
+// -------- ELECTRON WINDOW --------
+//
+function createWindow() {
+    win = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    const rendererPath = getRendererPath();
+    log("Renderer path:", rendererPath);
+
+    if (!fs.existsSync(rendererPath)) {
+        log("❌ Renderer introuvable");
+        win.loadURL(
+            "data:text/html,<h1>Erreur: renderer introuvable</h1><p>" +
+            rendererPath +
+            "</p>"
+        );
+        return;
+    }
+
+    // Utilise loadFile pour un fichier local
+    try {
+        win.loadFile(rendererPath);
+    } catch (e) {
+        log("Erreur loadFile:", e);
+        win.loadURL("data:text/html,<h1>Erreur lors du chargement du renderer</h1><pre>" + String(e) + "</pre>");
+    }
+}
+
+//
+// -------- BACKEND LAUNCH --------
+//
+function startBackend() {
+    const backendPath = getBackendPath();
+    log("Backend path:", backendPath);
+
+    if (!fs.existsSync(backendPath)) {
+        log("❌ Backend introuvable !");
+        return;
+    }
+
+    backend = spawn(backendPath, [], {
+        cwd: path.dirname(backendPath),
+        detached: false
+    });
+
+    backend.stdout.on("data", (data) => log("[backend]", data.toString()));
+    backend.stderr.on("data", (data) => log("[backend ERR]", data.toString()));
+    backend.on("close", (code) => log("Backend arrêté, code:", code));
+}
+
+//
+// -------- APP EVENTS --------
+//
+app.whenReady().then(() => {
+    startBackend();
+    createWindow();
+
+    app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+});
+
+app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+        app.quit();
     }
 });
 
-// ✅ tuer le backend quand l’app Electron se ferme
-app.on('quit', () => {
-    if (backend) {
-        backend.kill();
-        console.log("Backend process killed.");
-    }
+app.on("quit", () => {
+    if (backend) backend.kill();
 });

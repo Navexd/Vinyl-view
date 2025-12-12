@@ -1,12 +1,59 @@
 {
   "name": "vinyl-view",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "main": "main.js",
+
   "scripts": {
     "start": "electron .",
-    "pack": "electron-packager . VinylView --platform=win32 --arch=x64 --out=dist"
+    "build": "electron-builder"
   },
+
+  "dependencies": {
+    "electron-is-dev": "^3.0.1"
+  },
+
   "devDependencies": {
-    "electron": "^39.2.6"
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
+  },
+
+  "build": {
+    "appId": "com.vinyl.view",
+    "productName": "VinylView",
+
+    "directories": {
+      "output": "release"
+    },
+
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+
+    "extraResources": [
+      {
+        "from": "renderer",
+        "to": "renderer",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
+
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": true
+    }
   }
 }
