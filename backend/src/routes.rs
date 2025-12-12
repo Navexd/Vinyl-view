@@ -4,13 +4,10 @@ use rspotify::model::{AdditionalType, PlayableItem};
 use crate::models::TrackInfo;
 use crate::token::save_token_to_file;
 use rspotify::AuthCodeSpotify;
-use std::fs::OpenOptions;
-use std::io::Write;
-use crate::logger::log_play;
+use crate::logger::{log_play, log_to_file};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{Local, Duration as ChronoDuration, DateTime};
-
 
 pub fn login_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let login_spotify = spotify.clone();
@@ -34,14 +31,6 @@ pub fn login_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp:
             url = url
         ))
     })
-}
-fn log_to_file(msg: &str) {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("backend.log")
-        .unwrap();
-    writeln!(file, "{}", msg).unwrap();
 }
 
 use tokio::time::{timeout, Duration};
@@ -70,7 +59,6 @@ pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp
                     return Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"));
                 }
             }
-
             if needs_refresh {
                 match timeout(Duration::from_secs(3), status_spotify.refresh_token()).await {
                     Ok(Ok(_)) => {
@@ -94,19 +82,19 @@ pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp
     })
 }
 
-
-pub fn callback_route(spotify: AuthCodeSpotify, token_path: &'static str) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn callback_route(spotify: AuthCodeSpotify, token_path: String) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let callback_spotify = spotify.clone();
     warp::path("callback")
         .and(warp::query::query::<std::collections::HashMap<String, String>>())
         .and_then(move |params: std::collections::HashMap<String, String>| {
             let callback_spotify = callback_spotify.clone();
+            let token_path = token_path.clone();
             async move {
                 if let Some(code) = params.get("code") {
                     callback_spotify.request_token(code).await.unwrap();
                     if let Ok(guard) = callback_spotify.token.lock().await {
                         if let Some(token) = guard.as_ref() {
-                            save_token_to_file(token_path, token).await;
+                            save_token_to_file(&token_path, token).await;
                         }
                     }
                     let reply: Box<dyn warp::Reply> = Box::new(warp::redirect::temporary(
@@ -121,7 +109,6 @@ pub fn callback_route(spotify: AuthCodeSpotify, token_path: &'static str) -> imp
         })
 }
 
-
 lazy_static::lazy_static! {
     static ref LAST_TRACK_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     static ref LAST_TRACK_START: Arc<Mutex<Option<DateTime<Local>>>> = Arc::new(Mutex::new(None));
@@ -135,7 +122,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
         let np_spotify = np_spotify.clone();
         async move {
             let mut needs_refresh = false;
-
             {
                 let token_guard = np_spotify.token.lock().await;
                 if let Ok(guard) = token_guard.as_ref() {
@@ -163,7 +149,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                     }));
                 }
             }
-
             if needs_refresh {
                 match timeout(Duration::from_secs(3), np_spotify.refresh_token()).await {
                     Ok(Ok(_)) => log_play("✅ Refresh réussi"),
@@ -187,7 +172,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                     }
                 }
             }
-
             let current = np_spotify.current_playing(None, Option::<Vec<&AdditionalType>>::None).await;
             let track_info = match current {
                 Ok(Some(ctx)) => {
@@ -204,7 +188,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
 
                         let mut last_id = LAST_TRACK_ID.lock().await;
                         let mut last_start = LAST_TRACK_START.lock().await;
-
                         if last_id.as_ref() != Some(&current_id) {
                             log_play(&format!("🎵 Nouveau morceau : {}", current_id));
                             *last_id = Some(current_id.clone());
@@ -216,7 +199,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                                 *last_start = Some(now + ChronoDuration::seconds(9999)); // empêche de reloguer
                             }
                         }
-
                         info
                     } else {
                         log_play("ℹ️ Aucun morceau en cours");
@@ -237,10 +219,6 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
         }
     })
 }
-
-
-
-
 
 pub fn done_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("done").map(|| {
