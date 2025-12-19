@@ -1,37 +1,122 @@
+:root {
+--transition-speed: 0.5s;
+--glow-color: 255,255,255;
+}
+
+/* ============================
+   GLOBAL
+============================ */
 body {
     margin: 0;
     padding: 0;
-    background-color: #121212;
-    color: white;
     font-family: 'Segoe UI', sans-serif;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+
+    /* IMPORTANT : body transparent pour laisser le vrai background apparaître */
+    background-color: transparent;
 }
 
+/* ============================
+   ANIMATION RELAX
+============================ */
+@keyframes colorFloat {
+    0%   { background-position: 0% 50%; background-size: 180% 180%; }
+    25%  { background-position: 50% 60%; background-size: 200% 200%; }
+    50%  { background-position: 100% 50%; background-size: 185% 185%; }
+    75%  { background-position: 50% 40%; background-size: 205% 205%; }
+    100% { background-position: 0% 50%; background-size: 180% 180%; }
+}
+
+/* ============================
+   BACKGROUND LAYERS (FONDU)
+============================ */
+#background,
+#background-fade {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    filter: blur(2px);
+    background-size: 200% 200%;
+    animation: colorFloat 48s ease-in-out infinite;
+    opacity: 0;
+    transition: opacity 1.6s ease;
+}
+
+/* Le background principal visible dès le début */
+#background {
+    opacity: 1;
+}
+
+/* ============================
+   PLAYER
+============================ */
 #player {
     text-align: center;
 }
 
+/* ============================
+   COVER
+============================ */
 #cover {
-    border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    margin-bottom: 20px;
+    position: relative;
+    border-radius: 14px;
+    transition: transform 0.6s ease, opacity 0.5s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,0.4);
+}
+
+#cover.glow {
+    animation: breathingGlow 6s ease-in-out infinite alternate;
+}
+
+@keyframes breathingGlow {
+    0% {
+        box-shadow: 0 0 40px rgba(var(--glow-color), 0.20);
+        transform: scale(1);
+    }
+    100% {
+        box-shadow: 0 0 65px rgba(var(--glow-color), 0.45);
+        transform: scale(1.015);
+    }
+}
+/* ============================
+   COVER
+============================ */
+#vignette {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(circle at center,
+    rgba(0,0,0,0) 40%,
+    rgba(0,0,0,0.25) 100%
+    );
+    transition: opacity 1.5s ease;
+    opacity: 0.7;
+}
+
+/* ============================
+   TEXT
+============================ */
+#title, #artist, #album {
+    margin: 5px 0;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    transition: all var(--transition-speed) ease;
 }
 
 #title {
-    font-size: 2em;
-    margin: 0;
+    font-size: 2.4em;
 }
 
 #artist {
-    font-size: 1.5em;
-    margin: 5px 0;
-    color: #1db954;
+    font-size: 1.6em;
 }
 
 #album {
     font-size: 1em;
-    color: #ccc;
+    opacity: 0.7;
+    font-style: italic;
 }
