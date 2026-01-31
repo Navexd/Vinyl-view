@@ -4,13 +4,13 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// --- Compat electron-is-dev robuste (gère CommonJS et ESModule interop) ---
+// --- Compat electron-is-dev robuste ---
 const _isDevRaw = require('electron-is-dev');
 const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDevRaw)
     ? _isDevRaw.default
     : _isDevRaw;
 
-// --- Variables globals ---
+// --- Variables globales ---
 let backend;
 let win;
 
@@ -18,57 +18,50 @@ let win;
 // -------- LOG SYSTEM --------
 //
 
-// On crée le dossier log dans process.cwd() (pas dans app.asar)
 const logDir = path.join(process.cwd(), "log");
 if (!fs.existsSync(logDir)) {
-    try {
-        fs.mkdirSync(logDir);
-    } catch (e) {
-        console.error("Erreur création logDir:", e);
-    }
+    try { fs.mkdirSync(logDir); }
+    catch (e) { console.error("Erreur création logDir:", e); }
 }
 
 const logFile = path.join(logDir, "electron.log");
 
-// Fonction log sécurisée
 function log(...args) {
     const safe = args.map(a => {
-        try {
-            if (typeof a === "string") return a;
-            return JSON.stringify(a);
-        } catch {
-            return String(a);
-        }
+        try { return typeof a === "string" ? a : JSON.stringify(a); }
+        catch { return String(a); }
     }).join(" ");
 
-    try {
-        fs.appendFileSync(logFile, safe + "\n");
-    } catch (e) {
-        console.error("LOG ERROR:", e);
-    }
+    try { fs.appendFileSync(logFile, safe + "\n"); }
+    catch (e) { console.error("LOG ERROR:", e); }
 
     console.log(safe);
 }
 
 log("=== Electron démarré ===");
-log("isDev (raw):", _isDevRaw);
-log("isDev (bool):", !!isDev);
+log("isDev:", isDev);
 log("__dirname:", __dirname);
 log("process.resourcesPath:", process.resourcesPath);
+
 
 //
 // -------- PATHS --------
 //
+
+// ✔ Corrigé pour Windows (.exe)
+// ✔ Corrigé pour Linux + AppImage
+function getBackendPath() {
+    const exeName = process.platform === "win32" ? "backend.exe" : "backend";
+
+    return isDev
+        ? path.join(__dirname, "backend", exeName)
+        : path.join(process.resourcesPath, "backend", exeName);
+}
+
 function getRendererPath() {
     return isDev
         ? path.join(__dirname, "renderer", "index.html")
         : path.join(process.resourcesPath, "renderer", "index.html");
-}
-
-function getBackendPath() {
-    return isDev
-        ? path.join(__dirname, "backend", "backend.exe")
-        : path.join(process.resourcesPath, "backend", "backend.exe");
 }
 
 //
@@ -97,7 +90,6 @@ function createWindow() {
         return;
     }
 
-    // Utilise loadFile pour un fichier local
     try {
         win.loadFile(rendererPath);
     } catch (e) {
@@ -118,13 +110,23 @@ function startBackend() {
         return;
     }
 
+    // Linux : s'assurer que le backend est exécutable
+    if (process.platform !== "win32") {
+        try {
+            fs.chmodSync(backendPath, 0o755);
+            log("✔ Permissions OK pour le backend");
+        } catch (e) {
+            log("⚠ Impossible de mettre +x :", e);
+        }
+    }
+
     backend = spawn(backendPath, [], {
         cwd: path.dirname(backendPath),
         detached: false
     });
 
-    backend.stdout.on("data", (data) => log("[backend]", data.toString()));
-    backend.stderr.on("data", (data) => log("[backend ERR]", data.toString()));
+    backend.stdout.on("data", (d) => log("[backend]", d.toString()));
+    backend.stderr.on("data", (d) => log("[backend ERR]", d.toString()));
     backend.on("close", (code) => log("Backend arrêté, code:", code));
 }
 
@@ -141,9 +143,7 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-        app.quit();
-    }
+    if (process.platform !== "darwin") app.quit();
 });
 
 app.on("quit", () => {
