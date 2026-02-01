@@ -1,50 +1,62 @@
 {
   "name": "vinyl-view",
-  "version": "2.0.3",
+  "version": "2.0.5",
   "main": "main.js",
+  "type": "commonjs",
+
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --linux"
   },
+
   "dependencies": {
     "electron-is-dev": "^3.0.1"
-
   },
+
   "devDependencies": {
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12"
   },
+
   "build": {
     "appId": "com.vinyl.view",
     "productName": "VinylView",
+
     "directories": {
       "output": "release"
     },
+
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "renderer/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "renderer",
-        "to": "renderer",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "backend",
-        "to": "backend",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "win": {
-      "target": [
-        "nsis"
+
+    "linux": {
+      "target": ["AppImage"],
+      "category": "AudioVideo",
+      "extraResources": [
+        {
+          "from": "backend-linux",
+          "to": "backend",
+          "filter": ["**/*"]
+        }
       ]
     },
+
+    "win": {
+      "target": ["nsis"],
+      "extraResources": [
+        {
+          "from": "backend-win",
+          "to": "backend",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -52,9 +64,9 @@
       "createDesktopShortcut": true
     }
   },
+
   "description": "",
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "license": "ISC"
 }
