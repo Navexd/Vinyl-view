@@ -18,9 +18,11 @@ let win;
 // -------- LOG SYSTEM --------
 //
 
-const logDir = path.join(process.cwd(), "log");
+// ✔ Enregistre les logs DANS appData, persistant en release
+const logDir = path.join(app.getPath("userData"), "log");
+
 if (!fs.existsSync(logDir)) {
-    try { fs.mkdirSync(logDir); }
+    try { fs.mkdirSync(logDir, { recursive: true }); }
     catch (e) { console.error("Erreur création logDir:", e); }
 }
 
@@ -43,13 +45,10 @@ log("isDev:", isDev);
 log("__dirname:", __dirname);
 log("process.resourcesPath:", process.resourcesPath);
 
-
 //
 // -------- PATHS --------
 //
 
-// ✔ Corrigé pour Windows (.exe)
-// ✔ Corrigé pour Linux + AppImage
 function getBackendPath() {
     const exeName = process.platform === "win32" ? "backend.exe" : "backend";
 
@@ -76,6 +75,12 @@ function createWindow() {
             contextIsolation: false
         }
     });
+
+    // ✔ Supprimer la barre de menu en version release
+    if (!isDev) {
+        win.setMenuBarVisibility(false);
+        win.removeMenu();
+    }
 
     const rendererPath = getRendererPath();
     log("Renderer path:", rendererPath);
@@ -110,7 +115,6 @@ function startBackend() {
         return;
     }
 
-    // Linux : s'assurer que le backend est exécutable
     if (process.platform !== "win32") {
         try {
             fs.chmodSync(backendPath, 0o755);
