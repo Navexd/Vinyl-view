@@ -78,7 +78,7 @@ function createWindow() {
 
     // ✔ Supprimer la barre de menu en version release
     if (!isDev) {
-        win.setMenuBarVisibility(false);
+        win.setMenuBarVisibility(true);
         win.removeMenu();
     }
 

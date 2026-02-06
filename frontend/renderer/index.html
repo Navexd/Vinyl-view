@@ -7,20 +7,25 @@
     <script src="lib/color-thief.umd.js"></script>
 </head>
 <body>
-<div id="background"></div>
-<div id="background-fade"></div>
+
+<div id="bg-container" class="effect-float">
+    <div id="bg-layer1" class="bg-layer"></div>
+    <div id="bg-layer2" class="bg-layer"></div>
+</div>
 
 <div id="player">
-    <!-- Pochette -->
     <img id="cover" width="350" alt="Cover" />
-
-    <!-- Infos musique -->
     <h2 id="title">Titre en cours...</h2>
     <h3 id="artist">Artiste</h3>
     <p id="album">Album</p>
 </div>
 
+<button id="styleBtn">Float</button>
+<button id="shapeBtn">Radial</button>
+
+
 <script src="app.js"></script>
 <pre id="debug"></pre>
+
 </body>
 </html>

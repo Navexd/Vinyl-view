@@ -1,122 +1,285 @@
+/* ============================================
+   VARIABLES
+============================================ */
 :root {
---transition-speed: 0.5s;
---glow-color: 255,255,255;
+    --c1: #444;
+    --c2: #333;
+    --c3: #222;
+
+    --transition-speed: 0.5s;
+    --shape-gradient: radial-gradient(circle, #000, #000);
 }
 
-/* ============================
-   GLOBAL
-============================ */
-body {
+/* ============================================
+   BASE
+============================================ */
+html, body {
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', sans-serif;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    /* IMPORTANT : body transparent pour laisser le vrai background apparaître */
-    background-color: transparent;
+    background: black;
+    font-family: Arial, sans-serif;
 }
 
-/* ============================
-   ANIMATION RELAX
-============================ */
-@keyframes colorFloat {
-    0%   { background-position: 0% 50%; background-size: 180% 180%; }
-    25%  { background-position: 50% 60%; background-size: 200% 200%; }
-    50%  { background-position: 100% 50%; background-size: 185% 185%; }
-    75%  { background-position: 50% 40%; background-size: 205% 205%; }
-    100% { background-position: 0% 50%; background-size: 180% 180%; }
-}
-
-/* ============================
-   BACKGROUND LAYERS (FONDU)
-============================ */
-#background,
-#background-fade {
+/* ============================================
+   BACKGROUND ROOT
+============================================ */
+#bg-container {
     position: fixed;
     inset: 0;
-    z-index: -1;
-    filter: blur(2px);
-    background-size: 200% 200%;
-    animation: colorFloat 48s ease-in-out infinite;
-    opacity: 0;
-    transition: opacity 1.6s ease;
+    overflow: hidden;
+    z-index: 0;
 }
 
-/* Le background principal visible dès le début */
-#background {
-    opacity: 1;
+/* ============================================
+   BACKGROUND LAYERS (avec pseudo-décors)
+============================================ */
+.bg-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+
+    opacity: 0.85;
+    filter: blur(160px);
+    transition:
+            opacity 1s ease,
+            filter 1.5s ease,
+            mix-blend-mode 0s,
+            background 1.5s ease;
 }
 
-/* ============================
+.bg-layer::before {
+    content: "";
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
+    opacity: inherit;
+    filter: inherit;
+    mix-blend-mode: inherit;
+    transition: inherit;
+    animation: inherit;
+}
+
+/* ============================================
    PLAYER
-============================ */
+============================================ */
 #player {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     text-align: center;
+    color: black;
 }
 
-/* ============================
-   COVER
-============================ */
 #cover {
-    position: relative;
-    border-radius: 14px;
-    transition: transform 0.6s ease, opacity 0.5s ease;
-    box-shadow: 0 0 40px rgba(0,0,0,0.4);
-}
-
-#cover.glow {
-    animation: breathingGlow 6s ease-in-out infinite alternate;
-}
-
-@keyframes breathingGlow {
-    0% {
-        box-shadow: 0 0 40px rgba(var(--glow-color), 0.20);
-        transform: scale(1);
-    }
-    100% {
-        box-shadow: 0 0 65px rgba(var(--glow-color), 0.45);
-        transform: scale(1.015);
-    }
-}
-/* ============================
-   COVER
-============================ */
-#vignette {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: radial-gradient(circle at center,
-    rgba(0,0,0,0) 40%,
-    rgba(0,0,0,0.25) 100%
-    );
-    transition: opacity 1.5s ease;
-    opacity: 0.7;
-}
-
-/* ============================
-   TEXT
-============================ */
-#title, #artist, #album {
-    margin: 5px 0;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-    transition: all var(--transition-speed) ease;
+    border-radius: 16px;
+    width: 350px;
+    height: 350px;
+    object-fit: cover;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    margin-bottom: 20px;
 }
 
 #title {
-    font-size: 2.4em;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 4px 0;
 }
 
 #artist {
-    font-size: 1.6em;
+    font-size: 18px;
+    font-weight: 500;
+    margin: 2px 0;
 }
 
 #album {
-    font-size: 1em;
+    font-size: 14px;
     opacity: 0.7;
-    font-style: italic;
+}
+
+/* ============================================
+   BUTTONS
+============================================ */
+#styleBtn {
+    position: fixed;
+    right: 35px;
+    top: 40px;
+    padding: 10px 18px;
+    background: rgba(255,255,255,0.30);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 12px;
+    color: #000;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 20;
+    transition: 0.25s ease;
+}
+
+#styleBtn:hover {
+    background: rgba(255,255,255,0.55);
+    transform: scale(1.06);
+}
+
+#shapeBtn {
+    position: fixed;
+    right: 35px;
+    top: 85px;
+    padding: 10px 18px;
+    background: rgba(255,255,255,0.30);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 12px;
+    color: #000;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 20;
+    transition: 0.25s ease;
+}
+
+#shapeBtn:hover {
+    background: rgba(255,255,255,0.55);
+    transform: scale(1.06);
+}
+
+/* =========================================================
+   FLOAT EFFECT (OK)
+========================================================= */
+.effect-float #bg-layer1::before {
+    background: var(--shape-gradient);
+    width: 200%;
+    height: 200%;
+    animation: floatMove1 26s ease-in-out infinite;
+}
+
+.effect-float #bg-layer2::before {
+    background: var(--shape-gradient);
+    width: 160%;
+    height: 160%;
+    animation: floatMove2 18s ease-in-out infinite;
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+}
+
+@keyframes floatMove1 {
+    0%   { transform: translate(0,0) scale(1); }
+    25%  { transform: translate(120px,-80px) scale(1.25); }
+    50%  { transform: translate(-100px,100px) scale(1.1); }
+    75%  { transform: translate(60px,-40px) scale(1.15); }
+    100% { transform: translate(0,0) scale(1); }
+}
+
+@keyframes floatMove2 {
+    0%   { transform: translate(0,0) scale(1); }
+    25%  { transform: translate(-50px,60px) scale(1.05); }
+    50%  { transform: translate(80px,-50px) scale(1.15); }
+    75%  { transform: translate(-40px,30px) scale(1.1); }
+    100% { transform: translate(0,0) scale(1); }
+}
+
+/* =========================================================
+   WAVE EFFECT — FIXED (0% FLASH VERSION)
+========================================================= */
+.effect-wave #bg-layer1::before,
+.effect-wave #bg-layer2::before {
+    background: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
+    background-size: 300% 300%;
+    opacity: 0.85;
+    mix-blend-mode: screen;
+}
+
+.effect-wave #bg-layer1::before {
+    animation:
+            waveMotion1 18s ease-in-out infinite,
+            waveShift1 32s linear infinite;
+}
+
+.effect-wave #bg-layer2::before {
+    animation:
+            waveMotion2 26s ease-in-out infinite,
+            waveShift2 52s linear infinite;
+    opacity: 0.5;
+    filter: blur(240px);
+}
+
+/* VERTICAL SOFT MOVE */
+@keyframes waveMotion1 {
+    0%   { transform: translateY(-22px); }
+    50%  { transform: translateY( +22px ); }
+    100% { transform: translateY(-22px); }
+}
+
+@keyframes waveMotion2 {
+    0%   { transform: translateY(+30px); }
+    50%  { transform: translateY(-30px); }
+    100% { transform: translateY(+30px); }
+}
+
+/* HORIZONTAL SHIFT (transform → PAS background-position) */
+@keyframes waveShift1 {
+    0%   { transform: translateX(0%); }
+    100% { transform: translateX(-33%); }
+}
+
+@keyframes waveShift2 {
+    0%   { transform: translateX(0%); }
+    100% { transform: translateX(-45%); }
+}
+
+/* =========================================================
+   WAVE SUBEFFECTS
+========================================================= */
+.effect-wave.sub-ripple #bg-layer1::before,
+.effect-wave.sub-ripple #bg-layer2::before {
+    filter: blur(140px);
+    opacity: 0.75;
+}
+
+.effect-wave.sub-shoreline #bg-layer1::before {
+    opacity: 0.90;
+    filter: blur(180px);
+}
+.effect-wave.sub-shoreline #bg-layer2::before {
+    opacity: 0.55;
+    filter: blur(260px);
+}
+
+.effect-wave.sub-ocean #bg-layer1::before,
+.effect-wave.sub-ocean #bg-layer2::before {
+    opacity: 0.65;
+    filter: blur(300px);
+}
+
+.effect-wave.sub-refraction #bg-layer1::before {
+    mix-blend-mode: soft-light;
+    background-size: 350% 350%;
+    opacity: 0.85;
+}
+.effect-wave.sub-refraction #bg-layer2::before {
+    mix-blend-mode: overlay;
+    background-size: 400% 400%;
+    opacity: 0.45;
+}
+
+.effect-wave.sub-mist #bg-layer1::before {
+    opacity: 0.50;
+    filter: blur(200px);
+}
+.effect-wave.sub-mist #bg-layer2::before {
+    opacity: 0.35;
+    filter: blur(260px);
+}
+
+/* ========================================================= */
+#debug {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    color: white;
+    font-size: 12px;
+    opacity: 0.6;
 }
