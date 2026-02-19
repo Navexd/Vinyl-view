@@ -133,114 +133,180 @@ html, body {
 /* =========================================================
    FLOAT EFFECT
 ========================================================= */
+
+.effect-float #bg-layer1 {
+    filter: blur(80px);
+    opacity: 1;
+}
 .effect-float #bg-layer1::before {
-    background: var(--shape-gradient);
-    width: 200%;
-    height: 200%;
-    animation: floatMove1 26s ease-in-out infinite;
+    background: radial-gradient(circle, var(--c1) 0%, transparent 70%);
+    width: 180%;
+    height: 180%;
+    top: -40%;
+    left: -40%;
+    animation: floatMove1 38s ease-in-out infinite; /* ← était 22s */
 }
 
+.effect-float #bg-layer2 {
+    filter: blur(100px);
+    opacity: 0.9;
+}
 .effect-float #bg-layer2::before {
-    background: var(--shape-gradient);
+    background: radial-gradient(circle, var(--c2) 0%, transparent 70%);
     width: 160%;
     height: 160%;
-    animation: floatMove2 18s ease-in-out infinite;
-    opacity: 0.55;
-    mix-blend-mode: overlay;
+    top: 20%;
+    left: 20%;
+    animation: floatMove2 32s ease-in-out infinite; /* ← était 18s */
 }
 
-@keyframes floatMove1 {
-    0%   { transform: translate(0,0) scale(1); }
-    25%  { transform: translate(120px,-80px) scale(1.25); }
-    50%  { transform: translate(-100px,100px) scale(1.1); }
-    75%  { transform: translate(60px,-40px) scale(1.15); }
-    100% { transform: translate(0,0) scale(1); }
+.effect-float #bg-layer3 {
+    filter: blur(120px);
+    opacity: 0.85;
+}
+.effect-float #bg-layer3::before {
+    background: radial-gradient(circle, var(--c3) 0%, transparent 65%);
+    width: 150%;
+    height: 150%;
+    top: -10%;
+    left: 30%;
+    animation: floatMove3 44s ease-in-out infinite; /* ← était 26s */
 }
 
-@keyframes floatMove2 {
-    0%   { transform: translate(0,0) scale(1); }
-    25%  { transform: translate(-50px,60px) scale(1.05); }
-    50%  { transform: translate(80px,-50px) scale(1.15); }
-    75%  { transform: translate(-40px,30px) scale(1.1); }
-    100% { transform: translate(0,0) scale(1); }
+.effect-float #bg-layer4 {
+    filter: none;
+    z-index: 2;
+    inset: 0;
+    opacity: 1;
+}
+.effect-float #bg-layer4::before {
+    background: radial-gradient(ellipse at 50% 50%,
+    transparent 20%,
+    rgba(0,0,0,0.4) 60%,
+    rgba(0,0,0,0.85) 100%);
+    width: 100%;
+    height: 100%;
+    inset: 0;
+    animation: none;
 }
 
 /* =========================================================
-   WAVE EFFECT
-   Chaque layer a son gradient centré à un endroit différent
-   avec l'ordre des couleurs inversé. Quand elles bougent
-   en sens opposé, les 3 couleurs traversent l'écran.
+   FLOAT ANIMATIONS
+========================================================= */
+@keyframes floatMove1 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    25%  { transform: translate(15%, 20%) scale(1.1); }
+    50%  { transform: translate(-10%, 15%) scale(0.95); }
+    75%  { transform: translate(20%, -10%) scale(1.05); }
+    100% { transform: translate(0%, 0%) scale(1); }
+}
+
+@keyframes floatMove2 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    30%  { transform: translate(-20%, -15%) scale(1.08); }
+    60%  { transform: translate(10%, -20%) scale(0.92); }
+    100% { transform: translate(0%, 0%) scale(1); }
+}
+
+@keyframes floatMove3 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    35%  { transform: translate(-15%, 20%) scale(1.12); }
+    70%  { transform: translate(18%, 10%) scale(0.9); }
+    100% { transform: translate(0%, 0%) scale(1); }
+}
+
+/* =========================================================
+   WAVE EFFECT — Vague océanique, lente et relaxante
 ========================================================= */
 
-.effect-wave #bg-layer1,
-.effect-wave #bg-layer2 {
-    filter: blur(120px);
-    opacity: 0.95;
-}
-
-/* Layer 1 : gradient centré en haut-gauche, couleurs c1→c2→c3 */
 .effect-wave #bg-layer1 {
-    animation: waveParent1 32s ease-in-out infinite;
-}
-
-.effect-wave #bg-layer1::before {
-    background: radial-gradient(circle at 35% 35%, var(--c1) 0%, var(--c2) 40%, var(--c3) 80%);
-    width: 300%;
-    height: 300%;
-    filter: blur(60px);
+    filter: blur(85px);
     opacity: 1;
-    animation: waveChild1 18s ease-in-out infinite;
+}
+.effect-wave #bg-layer1::before {
+    background: radial-gradient(ellipse 85% 85% at center,
+    var(--c1) 0%,
+    var(--c2) 50%,
+    transparent 80%);
+    width: 260%;
+    height: 260%;
+    top: -80%;
+    left: -80%;
+    animation: waveDiag1 28s ease-in-out infinite;
 }
 
-/* Layer 2 : gradient centré en bas-droite, couleurs inversées c3→c1→c2 */
 .effect-wave #bg-layer2 {
-    animation: waveParent2 42s ease-in-out infinite;
+    filter: blur(100px);
+    opacity: 0.8;
 }
-
 .effect-wave #bg-layer2::before {
-    background: radial-gradient(circle at 65% 65%, var(--c3) 0%, var(--c1) 40%, var(--c2) 80%);
-    width: 280%;
-    height: 280%;
+    background: radial-gradient(ellipse 85% 85% at center,
+    var(--c2) 0%,
+    var(--c3) 50%,
+    transparent 80%);
+    width: 260%;
+    height: 260%;
+    top: -80%;
+    left: -80%;
+    animation: waveDiag1 28s ease-in-out infinite;
+    animation-delay: -14s;
+}
+
+/* Layer 3 : ondulation lente — donne l'effet de profondeur de l'eau */
+.effect-wave #bg-layer3 {
+    filter: blur(110px);
     opacity: 0.65;
-    filter: blur(80px);
-    mix-blend-mode: overlay;
-    animation: waveChild2 24s ease-in-out infinite;
+}
+.effect-wave #bg-layer3::before {
+    background: radial-gradient(ellipse 130% 130% at 50% 50%,
+    var(--c1) 0%,
+    var(--c2) 40%,
+    var(--c3) 100%);
+    width: 130%;
+    height: 130%;
+    top: -15%;
+    left: -15%;
+    /* Légère ondulation verticale — simule la houle */
+    animation: waveHoule 36s ease-in-out infinite;
 }
 
-/* --- Parents : ondulation diagonale --- */
-@keyframes waveParent1 {
-    0%   { transform: translate(0, 0) rotate(0deg); }
-    20%  { transform: translate(10%, 8%) rotate(3deg); }
-    40%  { transform: translate(-8%, 12%) rotate(-2.5deg); }
-    60%  { transform: translate(12%, -10%) rotate(4deg); }
-    80%  { transform: translate(-10%, -7%) rotate(-3deg); }
-    100% { transform: translate(0, 0) rotate(0deg); }
+.effect-wave #bg-layer4 {
+    filter: none;
+    z-index: 2;
+    inset: 0;
+    opacity: 1;
+}
+.effect-wave #bg-layer4::before {
+    background: radial-gradient(ellipse at 50% 50%,
+    transparent 15%,
+    rgba(0,0,0,0.25) 55%,
+    rgba(0,0,0,0.7) 100%);
+    width: 100%;
+    height: 100%;
+    inset: 0;
+    animation: none;
 }
 
-@keyframes waveParent2 {
-    0%   { transform: translate(0, 0) rotate(0deg); }
-    20%  { transform: translate(-12%, -8%) rotate(-4deg); }
-    40%  { transform: translate(10%, -12%) rotate(3deg); }
-    60%  { transform: translate(-8%, 10%) rotate(-3deg); }
-    80%  { transform: translate(12%, 6%) rotate(2.5deg); }
-    100% { transform: translate(0, 0) rotate(0deg); }
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+/* Vague principale : diagonale lente */
+@keyframes waveDiag1 {
+    0%   { transform: translate(30%, 30%); }
+    50%  { transform: translate(-30%, -30%); }
+    100% { transform: translate(30%, 30%); }
 }
 
-/* --- ::before : grands déplacements --- */
-@keyframes waveChild1 {
-    0%   { transform: translate(0, 0) scale(1); }
-    25%  { transform: translate(-200px, -160px) scale(1.18); }
-    50%  { transform: translate(160px, 140px) scale(1.06); }
-    75%  { transform: translate(-120px, -180px) scale(1.20); }
-    100% { transform: translate(0, 0) scale(1); }
+/* Houle : ondulation douce verticale + légère rotation */
+@keyframes waveHoule {
+    0%   { transform: translate(0%, 0%)    scaleY(1);    }
+    25%  { transform: translate(-5%, -8%)  scaleY(1.05); }
+    50%  { transform: translate(0%, -12%)  scaleY(0.97); }
+    75%  { transform: translate(5%, -6%)   scaleY(1.03); }
+    100% { transform: translate(0%, 0%)    scaleY(1);    }
 }
 
-@keyframes waveChild2 {
-    0%   { transform: translate(0, 0) scale(1); }
-    33%  { transform: translate(180px, -170px) scale(1.16); }
-    66%  { transform: translate(-160px, 180px) scale(1.08); }
-    100% { transform: translate(0, 0) scale(1); }
-}
 
 /* =========================================================
    DEBUG
