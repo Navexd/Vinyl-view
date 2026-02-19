@@ -71,34 +71,95 @@ function boostColor(color, avgLum, role = "light") {
 function updateBackgroundFromCover() {
     const colorThief = new ColorThief();
 
-    let palette;
+    let rawPalette;
     try {
-        palette = colorThief.getPalette(cover, 6);
+        rawPalette = colorThief.getPalette(cover, 16);
     } catch (e) {
         console.error("ColorThief ERROR:", e);
         return;
     }
 
-    if (!palette || palette.length === 0) {
+    if (!rawPalette || rawPalette.length === 0) {
         applyColors([60,60,60], [40,40,40], [20,20,20], 30);
         return;
     }
 
-    // Trier par saturation pour prendre les couleurs les plus "vivantes"
-    const sorted = [...palette].sort((a, b) => getSaturation(b) - getSaturation(a));
+    // Mesurer la dispersion pour adapter la palette
+    let totalDistance = 0;
+    let pairs = 0;
+    for (let i = 0; i < rawPalette.length; i++) {
+        for (let j = i + 1; j < rawPalette.length; j++) {
+            const dr = rawPalette[i][0] - rawPalette[j][0];
+            const dg = rawPalette[i][1] - rawPalette[j][1];
+            const db = rawPalette[i][2] - rawPalette[j][2];
+            totalDistance += Math.sqrt(dr*dr + dg*dg + db*db);
+            pairs++;
+        }
+    }
+    const avgDispersion = totalDistance / pairs;
 
-    // c1 = la plus saturée (vive)
-    // c2 = la 2e plus saturée (intermédiaire)
-    // c3 = la plus sombre de la palette (profondeur)
-    currentColors.c1 = sorted[0];
-    currentColors.c2 = sorted[1] || sorted[0];
-    currentColors.c3 = [...palette].sort((a, b) => getLuminance(a) - getLuminance(b))[0];
+    let paletteSize;
+    if (avgDispersion < 50)       paletteSize = 4;
+    else if (avgDispersion < 90)  paletteSize = 6;
+    else if (avgDispersion < 140) paletteSize = 10;
+    else                          paletteSize = 14;
 
-    // Luminosité moyenne de la palette
+    let palette;
+    try {
+        palette = colorThief.getPalette(cover, paletteSize);
+    } catch (e) {
+        palette = rawPalette;
+    }
+
+    // ColorThief retourne les couleurs dans l'ordre de dominance (index 0 = plus présente)
+    // On crée un score qui combine dominance + saturation
+    // La dominance est inversement proportionnelle à l'index
+    const scored = palette.map((c, i) => {
+        const dominance = 1 - (i / palette.length); // 1.0 → 0.0
+        const sat = getSaturation(c) / 255;         // 0.0 → 1.0
+        const lum = getLuminance(c);
+
+        // Pénaliser les couleurs trop sombres ou trop claires pour c1/c2
+        const lumPenalty = (lum < 15 || lum > 220) ? 0.3 : 1.0;
+
+        // Score = 60% dominance + 40% saturation, avec pénalité luminosité
+        const score = (dominance * 0.6 + sat * 0.4) * lumPenalty;
+
+        return { c, score, dominance, sat, lum };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    // c1 = meilleur score (dominante + vivante)
+    currentColors.c1 = scored[0].c;
+
+    // c2 = suffisamment différente de c1 ET bon score
+    currentColors.c2 = scored.find(({ c }, i) => {
+        if (i === 0) return false;
+        const dr = c[0] - scored[0].c[0];
+        const dg = c[1] - scored[0].c[1];
+        const db = c[2] - scored[0].c[2];
+        return Math.sqrt(dr*dr + dg*dg + db*db) > 50;
+    })?.c || scored[1]?.c || scored[0].c;
+
+    // c3 = la plus sombre de toute la palette pour la profondeur
+    currentColors.c3 = [...palette]
+        .sort((a, b) => getLuminance(a) - getLuminance(b))[0];
+
     const avgLum = palette.reduce((sum, c) => sum + getLuminance(c), 0) / palette.length;
+
+    // Log détaillé
+    console.log(`Dispersion: ${avgDispersion.toFixed(1)} → paletteSize: ${paletteSize}`);
+    scored.forEach(({ c, score, dominance, sat }, i) => {
+        const hex = '#' + c.map(v => v.toString(16).padStart(2,'0')).join('');
+        console.log(`  [${i}] ${hex} | score: ${score.toFixed(2)} | dom: ${dominance.toFixed(2)} | sat: ${(sat*255).toFixed(0)}`);
+    });
+    console.log(`c1: rgb(${currentColors.c1}) | c2: rgb(${currentColors.c2}) | c3: rgb(${currentColors.c3})`);
 
     applyColors(currentColors.c1, currentColors.c2, currentColors.c3, avgLum);
 }
+
+
 
 function applyColors(c1, c2, c3, avgLum) {
     const boosted1 = boostColor(c1, avgLum, "light");
