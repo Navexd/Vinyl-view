@@ -1,3 +1,4 @@
+
 // ========================================
 // ELEMENTS
 // ========================================
@@ -11,14 +12,57 @@ const styleBtn = document.getElementById("styleBtn");
 const shapeBtn = document.getElementById("shapeBtn");
 
 // ========================================
+// COLOR STATE
+// ========================================
+let currentColors = { c1: null, c2: null, c3: null };
+
+// ========================================
 // COLOR UTILS
 // ========================================
-function softRGB([r, g, b]) {
-    return [
-        Math.round(r * 0.85),
-        Math.round(g * 0.85),
-        Math.round(b * 0.85)
-    ];
+function getLuminance([r, g, b]) {
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function getSaturation([r, g, b]) {
+    return Math.max(r, g, b) - Math.min(r, g, b);
+}
+
+/**
+ * Booste une couleur avec un facteur adaptatif.
+ * Le 'role' différencie les couleurs :
+ *   - "light" (c1) : boostée au max
+ *   - "mid" (c2) : boost modéré
+ *   - "dark" (c3) : assombrie pour créer du contraste
+ */
+function boostColor(color, avgLum, role = "light") {
+    let factor;
+
+    if (avgLum < 30) {
+        factor = role === "light" ? 3.2 : role === "mid" ? 2.4 : 1.6;
+    } else if (avgLum < 60) {
+        factor = role === "light" ? 2.4 : role === "mid" ? 1.7 : 1.1;
+    } else if (avgLum < 100) {
+        factor = role === "light" ? 1.5 : role === "mid" ? 1.1 : 0.75;
+    } else if (avgLum < 150) {
+        factor = role === "light" ? 1.2 : role === "mid" ? 0.9 : 0.65;
+    } else {
+        factor = role === "light" ? 0.95 : role === "mid" ? 0.75 : 0.55;
+    }
+
+    let [r, g, b] = color.map(v => Math.min(255, Math.round(v * factor)));
+
+    // Garantie minimum pour les couleurs light et mid
+    if (role !== "dark") {
+        const lum = getLuminance([r, g, b]);
+        if (lum < 35) {
+            const lift = 45 - lum;
+            r = Math.min(255, r + Math.round(lift));
+            g = Math.min(255, g + Math.round(lift * 0.8));
+            b = Math.min(255, b + Math.round(lift * 0.6));
+        }
+    }
+
+    return [r, g, b];
 }
 
 // ========================================
@@ -29,39 +73,63 @@ function updateBackgroundFromCover() {
 
     let palette;
     try {
-        palette = colorThief.getPalette(cover, 5);
+        palette = colorThief.getPalette(cover, 6);
     } catch (e) {
         console.error("ColorThief ERROR:", e);
-    }
-
-    if (!palette || palette.length === 0) {
-        document.documentElement.style.setProperty("--c1", "rgb(40,40,40)");
-        document.documentElement.style.setProperty("--c2", "rgb(20,20,20)");
-        document.documentElement.style.setProperty("--c3", "rgb(5,5,5)");
-        updateShapeGradient(currentSubEffect());
         return;
     }
 
-    const light = `rgb(${palette[0].map(v => Math.min(255, v + 20)).join(",")})`;
-    const mid   = `rgb(${palette[1].join(",")})`;
-    const dark  = `rgb(${palette[2].map(v => Math.round(v * 0.7)).join(",")})`;
+    if (!palette || palette.length === 0) {
+        applyColors([60,60,60], [40,40,40], [20,20,20], 30);
+        return;
+    }
 
-    document.documentElement.style.setProperty("--c1", light);
-    document.documentElement.style.setProperty("--c2", mid);
-    document.documentElement.style.setProperty("--c3", dark);
+    // Trier par saturation pour prendre les couleurs les plus "vivantes"
+    const sorted = [...palette].sort((a, b) => getSaturation(b) - getSaturation(a));
 
-    updateShapeGradient(currentSubEffect());
+    // c1 = la plus saturée (vive)
+    // c2 = la 2e plus saturée (intermédiaire)
+    // c3 = la plus sombre de la palette (profondeur)
+    currentColors.c1 = sorted[0];
+    currentColors.c2 = sorted[1] || sorted[0];
+    currentColors.c3 = [...palette].sort((a, b) => getLuminance(a) - getLuminance(b))[0];
+
+    // Luminosité moyenne de la palette
+    const avgLum = palette.reduce((sum, c) => sum + getLuminance(c), 0) / palette.length;
+
+    applyColors(currentColors.c1, currentColors.c2, currentColors.c3, avgLum);
+}
+
+function applyColors(c1, c2, c3, avgLum) {
+    const boosted1 = boostColor(c1, avgLum, "light");
+    const boosted2 = boostColor(c2, avgLum, "mid");
+    const boosted3 = boostColor(c3, avgLum, "dark");
+
+    document.documentElement.style.setProperty("--c1", `rgb(${boosted1.join(",")})`);
+    document.documentElement.style.setProperty("--c2", `rgb(${boosted2.join(",")})`);
+    document.documentElement.style.setProperty("--c3", `rgb(${boosted3.join(",")})`);
+
+    // Float : applique le sous-effet choisi
+    // Wave : le CSS gère directement les gradients par layer
+    if (currentEffect === "float") {
+        updateShapeGradient(currentSubEffect());
+    }
 }
 
 // ========================================
 // UPDATE UI
 // ========================================
+let lastCoverUrl = "";
+
 function updateUI(data) {
     if (!data) return;
 
     title.textContent = data.title || "";
     artist.textContent = data.artist || "";
     album.textContent = data.album || "";
+
+    if (data.cover_url === lastCoverUrl) return;
+    lastCoverUrl = data.cover_url;
 
     cover.classList.add("fade");
 
@@ -82,46 +150,27 @@ function updateUI(data) {
 }
 
 // ========================================
-// SHAPES & SUB‑EFFECTS
+// SHAPES & SUB-EFFECTS
 // ========================================
-
-// float = shapes graphiques
 const floatSubEffects = ["radial", "aurora", "blobs", "noise", "vignette"];
 
-// wave = sous‑modes animés
-const waveSubEffects = ["ripple", "shoreline", "ocean", "refraction", "mist"];
-
-let currentEffect = "float";  // effet principal
-let subIndex = 0;             // sous‑effet index
+let currentEffect = "float";
+let subIndex = 0;
 
 function currentSubEffect() {
-    return currentEffect === "float"
-        ? floatSubEffects[subIndex]
-        : waveSubEffects[subIndex];
+    return floatSubEffects[subIndex];
 }
 
 // ========================================
 // UPDATE SHAPE BUTTON
 // ========================================
 function updateShapeButton() {
-    const list = currentEffect === "float" ? floatSubEffects : waveSubEffects;
-    const name = list[subIndex];
-
+    const name = floatSubEffects[subIndex];
     shapeBtn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    shapeBtn.style.display = currentEffect === "float" ? "" : "none";
 
-    // applique un type aux classes
-    document.documentElement.style.setProperty("--shape-type", name);
-
-    // met à jour le gradient
-    updateShapeGradient(name);
-
-    // ajoute une classe pour les sous-effets WAVE
-    container.classList.remove(
-        "sub-ripple", "sub-shoreline", "sub-ocean", "sub-refraction", "sub-mist"
-    );
-
-    if (currentEffect === "wave") {
-        container.classList.add("sub-" + name);
+    if (currentEffect === "float") {
+        updateShapeGradient(name);
     }
 }
 
@@ -129,8 +178,7 @@ function updateShapeButton() {
 // BUTTON CLICK (SOUS-EFFET)
 // ========================================
 shapeBtn.onclick = () => {
-    const list = currentEffect === "float" ? floatSubEffects : waveSubEffects;
-    subIndex = (subIndex + 1) % list.length;
+    subIndex = (subIndex + 1) % floatSubEffects.length;
     updateShapeButton();
 };
 
@@ -191,7 +239,6 @@ let index = 0;
 function applyEffect(name) {
     currentEffect = name;
 
-    // NE PLUS ÉCRASER TOUTES LES CLASSES
     container.classList.remove("effect-float", "effect-wave");
     container.classList.add("effect-" + name);
 
@@ -199,6 +246,12 @@ function applyEffect(name) {
 
     subIndex = 0;
     updateShapeButton();
+
+    if (currentColors.c1) {
+        const avgLum = [currentColors.c1, currentColors.c2, currentColors.c3]
+            .reduce((sum, c) => sum + getLuminance(c), 0) / 3;
+        applyColors(currentColors.c1, currentColors.c2, currentColors.c3, avgLum);
+    }
 }
 
 styleBtn.onclick = () => {
@@ -206,7 +259,7 @@ styleBtn.onclick = () => {
     applyEffect(effects[index]);
 };
 
-// effet initial
+// Effet initial
 applyEffect("float");
 
 // ========================================

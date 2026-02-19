@@ -1,18 +1,17 @@
-/* ============================================
+/* =========================================================
    VARIABLES
-============================================ */
+========================================================= */
 :root {
     --c1: #444;
     --c2: #333;
     --c3: #222;
 
-    --transition-speed: 0.5s;
-    --shape-gradient: radial-gradient(circle, #000, #000);
+    --shape-gradient: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
 }
 
-/* ============================================
+/* =========================================================
    BASE
-============================================ */
+========================================================= */
 html, body {
     margin: 0;
     padding: 0;
@@ -22,9 +21,9 @@ html, body {
     font-family: Arial, sans-serif;
 }
 
-/* ============================================
+/* =========================================================
    BACKGROUND ROOT
-============================================ */
+========================================================= */
 #bg-container {
     position: fixed;
     inset: 0;
@@ -32,38 +31,38 @@ html, body {
     z-index: 0;
 }
 
-/* ============================================
-   BACKGROUND LAYERS (avec pseudo-décors)
-============================================ */
+/* =========================================================
+   BACKGROUND LAYERS
+========================================================= */
 .bg-layer {
     position: absolute;
-    inset: 0;
+    inset: -100%;
     overflow: hidden;
 
     opacity: 0.85;
     filter: blur(160px);
-    transition:
-            opacity 1s ease,
-            filter 1.5s ease,
-            mix-blend-mode 0s,
-            background 1.5s ease;
+
+    transition: opacity 2s ease, filter 2s ease;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .bg-layer::before {
     content: "";
     position: absolute;
-    inset: -50%;
-    background: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
+    inset: 0;
+    background: var(--shape-gradient);
     opacity: inherit;
     filter: inherit;
     mix-blend-mode: inherit;
-    transition: inherit;
-    animation: inherit;
+    transition: background 2s ease, opacity 2s ease, filter 2s ease;
 }
 
-/* ============================================
+/* =========================================================
    PLAYER
-============================================ */
+========================================================= */
 #player {
     position: absolute;
     top: 50%;
@@ -80,6 +79,11 @@ html, body {
     object-fit: cover;
     box-shadow: 0 12px 40px rgba(0,0,0,0.4);
     margin-bottom: 20px;
+    transition: opacity 0.4s ease;
+}
+
+#cover.fade {
+    opacity: 0.3;
 }
 
 #title {
@@ -99,13 +103,12 @@ html, body {
     opacity: 0.7;
 }
 
-/* ============================================
+/* =========================================================
    BUTTONS
-============================================ */
-#styleBtn {
+========================================================= */
+#styleBtn, #shapeBtn {
     position: fixed;
     right: 35px;
-    top: 40px;
     padding: 10px 18px;
     background: rgba(255,255,255,0.30);
     backdrop-filter: blur(12px);
@@ -119,35 +122,16 @@ html, body {
     transition: 0.25s ease;
 }
 
-#styleBtn:hover {
-    background: rgba(255,255,255,0.55);
-    transform: scale(1.06);
-}
+#styleBtn { top: 40px; }
+#shapeBtn { top: 85px; }
 
-#shapeBtn {
-    position: fixed;
-    right: 35px;
-    top: 85px;
-    padding: 10px 18px;
-    background: rgba(255,255,255,0.30);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.55);
-    border-radius: 12px;
-    color: #000;
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    z-index: 20;
-    transition: 0.25s ease;
-}
-
-#shapeBtn:hover {
+#styleBtn:hover, #shapeBtn:hover {
     background: rgba(255,255,255,0.55);
     transform: scale(1.06);
 }
 
 /* =========================================================
-   FLOAT EFFECT (OK)
+   FLOAT EFFECT
 ========================================================= */
 .effect-float #bg-layer1::before {
     background: var(--shape-gradient);
@@ -182,99 +166,85 @@ html, body {
 }
 
 /* =========================================================
-   WAVE EFFECT — FIXED (0% FLASH VERSION)
+   WAVE EFFECT
+   Chaque layer a son gradient centré à un endroit différent
+   avec l'ordre des couleurs inversé. Quand elles bougent
+   en sens opposé, les 3 couleurs traversent l'écran.
 ========================================================= */
-.effect-wave #bg-layer1::before,
-.effect-wave #bg-layer2::before {
-    background: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
-    background-size: 300% 300%;
-    opacity: 0.85;
-    mix-blend-mode: screen;
+
+.effect-wave #bg-layer1,
+.effect-wave #bg-layer2 {
+    filter: blur(120px);
+    opacity: 0.95;
+}
+
+/* Layer 1 : gradient centré en haut-gauche, couleurs c1→c2→c3 */
+.effect-wave #bg-layer1 {
+    animation: waveParent1 32s ease-in-out infinite;
 }
 
 .effect-wave #bg-layer1::before {
-    animation:
-            waveMotion1 18s ease-in-out infinite,
-            waveShift1 32s linear infinite;
+    background: radial-gradient(circle at 35% 35%, var(--c1) 0%, var(--c2) 40%, var(--c3) 80%);
+    width: 300%;
+    height: 300%;
+    filter: blur(60px);
+    opacity: 1;
+    animation: waveChild1 18s ease-in-out infinite;
+}
+
+/* Layer 2 : gradient centré en bas-droite, couleurs inversées c3→c1→c2 */
+.effect-wave #bg-layer2 {
+    animation: waveParent2 42s ease-in-out infinite;
 }
 
 .effect-wave #bg-layer2::before {
-    animation:
-            waveMotion2 26s ease-in-out infinite,
-            waveShift2 52s linear infinite;
-    opacity: 0.5;
-    filter: blur(240px);
+    background: radial-gradient(circle at 65% 65%, var(--c3) 0%, var(--c1) 40%, var(--c2) 80%);
+    width: 280%;
+    height: 280%;
+    opacity: 0.65;
+    filter: blur(80px);
+    mix-blend-mode: overlay;
+    animation: waveChild2 24s ease-in-out infinite;
 }
 
-/* VERTICAL SOFT MOVE */
-@keyframes waveMotion1 {
-    0%   { transform: translateY(-22px); }
-    50%  { transform: translateY( +22px ); }
-    100% { transform: translateY(-22px); }
+/* --- Parents : ondulation diagonale --- */
+@keyframes waveParent1 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(10%, 8%) rotate(3deg); }
+    40%  { transform: translate(-8%, 12%) rotate(-2.5deg); }
+    60%  { transform: translate(12%, -10%) rotate(4deg); }
+    80%  { transform: translate(-10%, -7%) rotate(-3deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
 }
 
-@keyframes waveMotion2 {
-    0%   { transform: translateY(+30px); }
-    50%  { transform: translateY(-30px); }
-    100% { transform: translateY(+30px); }
+@keyframes waveParent2 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(-12%, -8%) rotate(-4deg); }
+    40%  { transform: translate(10%, -12%) rotate(3deg); }
+    60%  { transform: translate(-8%, 10%) rotate(-3deg); }
+    80%  { transform: translate(12%, 6%) rotate(2.5deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
 }
 
-/* HORIZONTAL SHIFT (transform → PAS background-position) */
-@keyframes waveShift1 {
-    0%   { transform: translateX(0%); }
-    100% { transform: translateX(-33%); }
+/* --- ::before : grands déplacements --- */
+@keyframes waveChild1 {
+    0%   { transform: translate(0, 0) scale(1); }
+    25%  { transform: translate(-200px, -160px) scale(1.18); }
+    50%  { transform: translate(160px, 140px) scale(1.06); }
+    75%  { transform: translate(-120px, -180px) scale(1.20); }
+    100% { transform: translate(0, 0) scale(1); }
 }
 
-@keyframes waveShift2 {
-    0%   { transform: translateX(0%); }
-    100% { transform: translateX(-45%); }
+@keyframes waveChild2 {
+    0%   { transform: translate(0, 0) scale(1); }
+    33%  { transform: translate(180px, -170px) scale(1.16); }
+    66%  { transform: translate(-160px, 180px) scale(1.08); }
+    100% { transform: translate(0, 0) scale(1); }
 }
 
 /* =========================================================
-   WAVE SUBEFFECTS
+   DEBUG
 ========================================================= */
-.effect-wave.sub-ripple #bg-layer1::before,
-.effect-wave.sub-ripple #bg-layer2::before {
-    filter: blur(140px);
-    opacity: 0.75;
-}
-
-.effect-wave.sub-shoreline #bg-layer1::before {
-    opacity: 0.90;
-    filter: blur(180px);
-}
-.effect-wave.sub-shoreline #bg-layer2::before {
-    opacity: 0.55;
-    filter: blur(260px);
-}
-
-.effect-wave.sub-ocean #bg-layer1::before,
-.effect-wave.sub-ocean #bg-layer2::before {
-    opacity: 0.65;
-    filter: blur(300px);
-}
-
-.effect-wave.sub-refraction #bg-layer1::before {
-    mix-blend-mode: soft-light;
-    background-size: 350% 350%;
-    opacity: 0.85;
-}
-.effect-wave.sub-refraction #bg-layer2::before {
-    mix-blend-mode: overlay;
-    background-size: 400% 400%;
-    opacity: 0.45;
-}
-
-.effect-wave.sub-mist #bg-layer1::before {
-    opacity: 0.50;
-    filter: blur(200px);
-}
-.effect-wave.sub-mist #bg-layer2::before {
-    opacity: 0.35;
-    filter: blur(260px);
-}
-
-/* ========================================================= */
 #debug {
     position: fixed;
     bottom: 10px;
