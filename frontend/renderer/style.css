@@ -5,72 +5,6 @@
     --c1: #444;
     --c2: #333;
     --c3: #222;
-
-    --shape-gradient: radial-gradient(circle, var(--c1), var(--c2), var(--c3));
-}
-
-#player {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-}
-
-#cover-wrapper {
-    position: relative;
-    width: 350px;
-    height: 350px;
-    flex-shrink: 0;
-    margin-bottom: 20px;
-}
-
-#cover-front,
-#cover-back {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 350px;
-    height: 350px;
-    border-radius: 16px;
-    object-fit: cover;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-    transition: opacity 0.8s ease;
-}
-
-#cover-back  { opacity: 1; }
-#cover-front { opacity: 0; }
-
-
-#track-info {
-    margin-top: 0;
-    text-align: center;
-    width: 500px;
-    max-width: 90vw;
-}
-
-#title {
-    font-size: 16px;
-    font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-#artist {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-#album {
-    font-size: 12px;
-    opacity: 0.7;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* =========================================================
@@ -102,12 +36,9 @@ html, body {
     position: absolute;
     inset: -100%;
     overflow: hidden;
-
     opacity: 0.85;
     filter: blur(160px);
-
     transition: opacity 2s ease, filter 2s ease;
-
     display: flex;
     justify-content: center;
     align-items: center;
@@ -117,10 +48,6 @@ html, body {
     content: "";
     position: absolute;
     inset: 0;
-    background: var(--shape-gradient);
-    opacity: inherit;
-    filter: inherit;
-    mix-blend-mode: inherit;
     transition: background 2s ease, opacity 2s ease, filter 2s ease;
 }
 
@@ -132,53 +59,80 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    color: black;
+    color: white;
+    z-index: 10;
 }
 
-#cover {
-    border-radius: 16px;
+#cover-wrapper {
+    position: relative;
     width: 350px;
     height: 350px;
-    object-fit: cover;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    flex-shrink: 0;
     margin-bottom: 20px;
-    transition: opacity 0.4s ease;
 }
 
-#cover.fade {
-    opacity: 0.3;
+#cover-front,
+#cover-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 350px;
+    height: 350px;
+    border-radius: 16px;
+    object-fit: cover;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    transition: opacity 0.8s ease;
+}
+
+#cover-back  { opacity: 1; }
+#cover-front { opacity: 0; }
+
+#track-info {
+    width: 350px;
+    max-width: 90vw;
+    text-align: center;
 }
 
 #title {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700;
     margin: 4px 0;
+    white-space: normal;
+    word-break: break-word;
 }
 
 #artist {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 500;
     margin: 2px 0;
+    white-space: normal;
+    word-break: break-word;
 }
 
 #album {
-    font-size: 14px;
+    font-size: 13px;
     opacity: 0.7;
+    white-space: normal;
+    word-break: break-word;
 }
 
 /* =========================================================
-   BUTTONS
+   BUTTON
 ========================================================= */
-#styleBtn, #shapeBtn {
+#styleBtn {
     position: fixed;
+    top: 40px;
     right: 35px;
     padding: 10px 18px;
     background: rgba(255,255,255,0.30);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255,255,255,0.55);
     border-radius: 12px;
-    color: #000;
+    color: #fff;
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
@@ -186,10 +140,7 @@ html, body {
     transition: 0.25s ease;
 }
 
-#styleBtn { top: 40px; }
-#shapeBtn { top: 85px; }
-
-#styleBtn:hover, #shapeBtn:hover {
+#styleBtn:hover {
     background: rgba(255,255,255,0.55);
     transform: scale(1.06);
 }
@@ -197,7 +148,6 @@ html, body {
 /* =========================================================
    FLOAT EFFECT
 ========================================================= */
-
 .effect-float #bg-layer1 {
     filter: blur(80px);
     opacity: 1;
@@ -208,7 +158,7 @@ html, body {
     height: 180%;
     top: -40%;
     left: -40%;
-    animation: floatMove1 38s ease-in-out infinite; /* ← était 22s */
+    animation: floatMove1 38s ease-in-out infinite;
 }
 
 .effect-float #bg-layer2 {
@@ -221,77 +171,37 @@ html, body {
     height: 160%;
     top: 20%;
     left: 20%;
-    animation: floatMove2 32s ease-in-out infinite; /* ← était 18s */
-}
-
-.effect-float #bg-layer3 {
-    filter: blur(120px);
-    opacity: 0.85;
-}
-.effect-float #bg-layer3::before {
-    background: radial-gradient(circle, var(--c3) 0%, transparent 65%);
-    width: 150%;
-    height: 150%;
-    top: -10%;
-    left: 30%;
-    animation: floatMove3 44s ease-in-out infinite; /* ← était 26s */
-}
-
-.effect-float #bg-layer4 {
-    filter: none;
-    z-index: 2;
-    inset: 0;
-    opacity: 1;
-}
-.effect-float #bg-layer4::before {
-    background: radial-gradient(ellipse at 50% 50%,
-    transparent 20%,
-    rgba(0,0,0,0.4) 60%,
-    rgba(0,0,0,0.85) 100%);
-    width: 100%;
-    height: 100%;
-    inset: 0;
-    animation: none;
+    animation: floatMove2 32s ease-in-out infinite;
 }
 
 /* =========================================================
    FLOAT ANIMATIONS
 ========================================================= */
 @keyframes floatMove1 {
-    0%   { transform: translate(0%, 0%) scale(1); }
+    0%   { transform: translate(0%, 0%)   scale(1); }
     25%  { transform: translate(15%, 20%) scale(1.1); }
     50%  { transform: translate(-10%, 15%) scale(0.95); }
     75%  { transform: translate(20%, -10%) scale(1.05); }
-    100% { transform: translate(0%, 0%) scale(1); }
+    100% { transform: translate(0%, 0%)   scale(1); }
 }
 
 @keyframes floatMove2 {
-    0%   { transform: translate(0%, 0%) scale(1); }
+    0%   { transform: translate(0%, 0%)    scale(1); }
     30%  { transform: translate(-20%, -15%) scale(1.08); }
     60%  { transform: translate(10%, -20%) scale(0.92); }
-    100% { transform: translate(0%, 0%) scale(1); }
-}
-
-@keyframes floatMove3 {
-    0%   { transform: translate(0%, 0%) scale(1); }
-    35%  { transform: translate(-15%, 20%) scale(1.12); }
-    70%  { transform: translate(18%, 10%) scale(0.9); }
-    100% { transform: translate(0%, 0%) scale(1); }
+    100% { transform: translate(0%, 0%)    scale(1); }
 }
 
 /* =========================================================
-   WAVE EFFECT — Vague océanique, lente et relaxante
+   WAVE EFFECT
 ========================================================= */
-
 .effect-wave #bg-layer1 {
     filter: blur(85px);
     opacity: 1;
 }
 .effect-wave #bg-layer1::before {
     background: radial-gradient(ellipse 85% 85% at center,
-    var(--c1) 0%,
-    var(--c2) 50%,
-    transparent 80%);
+    var(--c1) 0%, var(--c2) 50%, transparent 80%);
     width: 260%;
     height: 260%;
     top: -80%;
@@ -305,9 +215,7 @@ html, body {
 }
 .effect-wave #bg-layer2::before {
     background: radial-gradient(ellipse 85% 85% at center,
-    var(--c2) 0%,
-    var(--c3) 50%,
-    transparent 80%);
+    var(--c2) 0%, var(--c3) 50%, transparent 80%);
     width: 260%;
     height: 260%;
     top: -80%;
@@ -316,71 +224,11 @@ html, body {
     animation-delay: -14s;
 }
 
-/* Layer 3 : ondulation lente — donne l'effet de profondeur de l'eau */
-.effect-wave #bg-layer3 {
-    filter: blur(110px);
-    opacity: 0.65;
-}
-.effect-wave #bg-layer3::before {
-    background: radial-gradient(ellipse 130% 130% at 50% 50%,
-    var(--c1) 0%,
-    var(--c2) 40%,
-    var(--c3) 100%);
-    width: 130%;
-    height: 130%;
-    top: -15%;
-    left: -15%;
-    /* Légère ondulation verticale — simule la houle */
-    animation: waveHoule 36s ease-in-out infinite;
-}
-
-.effect-wave #bg-layer4 {
-    filter: none;
-    z-index: 2;
-    inset: 0;
-    opacity: 1;
-}
-.effect-wave #bg-layer4::before {
-    background: radial-gradient(ellipse at 50% 50%,
-    transparent 15%,
-    rgba(0,0,0,0.25) 55%,
-    rgba(0,0,0,0.7) 100%);
-    width: 100%;
-    height: 100%;
-    inset: 0;
-    animation: none;
-}
-
 /* =========================================================
-   ANIMATIONS
+   WAVE ANIMATIONS
 ========================================================= */
-
-/* Vague principale : diagonale lente */
 @keyframes waveDiag1 {
     0%   { transform: translate(30%, 30%); }
     50%  { transform: translate(-30%, -30%); }
     100% { transform: translate(30%, 30%); }
 }
-
-/* Houle : ondulation douce verticale + légère rotation */
-@keyframes waveHoule {
-    0%   { transform: translate(0%, 0%)    scaleY(1);    }
-    25%  { transform: translate(-5%, -8%)  scaleY(1.05); }
-    50%  { transform: translate(0%, -12%)  scaleY(0.97); }
-    75%  { transform: translate(5%, -6%)   scaleY(1.03); }
-    100% { transform: translate(0%, 0%)    scaleY(1);    }
-}
-
-
-/* =========================================================
-   DEBUG
-========================================================= */
-#debug {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    color: white;
-    font-size: 12px;
-    opacity: 0.6;
-}
-/*ok V2*/
