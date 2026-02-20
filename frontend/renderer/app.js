@@ -139,6 +139,15 @@ function updateBackgroundFromCover() {
         const dr = c[0] - scored[0].c[0];
         const dg = c[1] - scored[0].c[1];
         const db = c[2] - scored[0].c[2];
+        const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+        const sat = getSaturation(c);
+        // Distance chromatique forte ET saturation minimale
+        return dist > 80 && sat > 40;
+    })?.c || scored.find(({ c }, i) => {
+        if (i === 0) return false;
+        const dr = c[0] - scored[0].c[0];
+        const dg = c[1] - scored[0].c[1];
+        const db = c[2] - scored[0].c[2];
         return Math.sqrt(dr*dr + dg*dg + db*db) > 50;
     })?.c || scored[1]?.c || scored[0].c;
 
