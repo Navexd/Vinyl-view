@@ -271,14 +271,14 @@ function updateUI(data) {
 // ========================================
 // EFFETS PRINCIPAUX (bouton styleBtn)
 // ========================================
-const effects = ["float", "wave"];
+const effects = ["float", "wave", "pulse"];
 let effectIndex  = 0;
 let currentEffect = "float";
 
-// Applique un effet principal (float ou wave)
+// Applique un effet principal (float, wave ou flame)
 function applyEffect(name) {
     currentEffect = name;
-    container.classList.remove("effect-float", "effect-wave");
+    container.classList.remove("effect-float", "effect-wave", "effect-pulse");
     container.classList.add("effect-" + name);
     styleBtn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
 
