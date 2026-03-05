@@ -1,0 +1,636 @@
+/* =========================================================
+   WRAPPER & SOCLE
+========================================================= */
+#turntable-wrapper {
+    position: relative;
+    width: 380px;
+    height: 380px;
+    margin: auto;
+    transform-style: preserve-3d;
+    perspective: 800px;
+    filter: drop-shadow(0 25px 50px rgba(0,0,0,0.85));
+    animation: floatPlayer 6s ease-in-out infinite;
+}
+
+@keyframes floatPlayer {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+#turntable-surface {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: rotateX(2deg);
+    background:
+            repeating-linear-gradient(
+                    90deg,
+                    rgba(0,0,0,0.08) 0px,
+                    transparent 1px,
+                    transparent 3px
+            ),
+            repeating-linear-gradient(
+                    90deg,
+                    rgba(255,200,130,0.02) 0px,
+                    transparent 2px,
+                    transparent 7px
+            ),
+                /* Nœuds de bois subtils */
+            radial-gradient(ellipse at 20% 60%, rgba(80,40,15,0.15) 0%, transparent 40%),
+            radial-gradient(ellipse at 75% 30%, rgba(80,40,15,0.1) 0%, transparent 35%),
+            radial-gradient(ellipse at 50% 85%, rgba(60,30,10,0.12) 0%, transparent 30%),
+            linear-gradient(
+                    175deg,
+                    #5a3825 0%,
+                    #4d2e1a 25%,
+                    #3f2414 50%,
+                    #4d2e1a 75%,
+                    #5a3825 100%
+            );
+    border-radius: 14px;
+    padding: 14px;
+    box-sizing: border-box;
+    box-shadow:
+            0 4px 0 0 #3a1f10,
+            0 5px 0 0 #2d1709,
+            0 6px 0 0 #1f1006,
+            0 7px 0 0 #150b04,
+            0 10px 20px rgba(0,0,0,0.4),
+            0 20px 40px rgba(0,0,0,0.3),
+            inset 0 1px 0 rgba(255,200,130,0.08),
+            inset 0 -1px 3px rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,0,0,0.5);
+    border-top-color: rgba(100,60,30,0.3);
+}
+
+#turntable {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background:
+            repeating-linear-gradient(
+                    0deg,
+                    rgba(255,255,255,0.005) 0px,
+                    transparent 1px,
+                    transparent 2px
+            ),
+            repeating-linear-gradient(
+                    90deg,
+                    rgba(255,255,255,0.005) 0px,
+                    transparent 1px,
+                    transparent 2px
+            ),
+            linear-gradient(
+                    170deg,
+                    rgba(50,50,50,0.25) 0%,
+                    rgba(20,20,20,0.6) 15%,
+                    #0c0c0c 40%,
+                    #080808 70%,
+                    #0a0a0a 100%
+            );
+    border-radius: 6px;
+    box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            inset 1px 0 0 rgba(255,255,255,0.02),
+            inset 0 3px 10px rgba(0,0,0,0.9),
+            inset 0 10px 30px rgba(0,0,0,0.5),
+            inset 3px 0 10px rgba(0,0,0,0.3),
+            inset -3px 0 10px rgba(0,0,0,0.3),
+            inset 0 -3px 10px rgba(0,0,0,0.4),
+            0 0 0 1px #000,
+            0 -1px 0 0 rgba(80,50,25,0.2);
+}
+
+/* =========================================================
+   BOUTON POWER
+========================================================= */
+#power-indicator {
+    position: absolute;
+    bottom: 18px;
+    right: 22px;
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(circle at 40% 40%, #ff3333, #aa0000 60%, #550000);
+    border-radius: 50%;
+    z-index: 12;
+    box-shadow:
+            0 0 4px rgba(255,0,0,0.6),
+            0 0 10px rgba(255,0,0,0.3),
+            inset 0 1px 1px rgba(255,255,255,0.3);
+    animation: ledPulseRed 2s ease-in-out infinite;
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+#power-indicator.active {
+    background: radial-gradient(circle at 40% 40%, #33ff33, #00aa00 60%, #005500);
+    box-shadow:
+            0 0 4px rgba(0,255,0,0.6),
+            0 0 10px rgba(0,255,0,0.3),
+            inset 0 1px 1px rgba(255,255,255,0.3);
+    animation: ledPulseGreen 2s ease-in-out infinite;
+}
+
+@keyframes ledPulseRed {
+    0%, 100% { box-shadow: 0 0 4px rgba(255,0,0,0.6), 0 0 10px rgba(255,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.3); }
+    50% { box-shadow: 0 0 6px rgba(255,0,0,0.8), 0 0 16px rgba(255,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.3); }
+}
+
+@keyframes ledPulseGreen {
+    0%, 100% { box-shadow: 0 0 4px rgba(0,255,0,0.6), 0 0 10px rgba(0,255,0,0.3), inset 0 1px 1px rgba(255,255,255,0.3); }
+    50% { box-shadow: 0 0 6px rgba(0,255,0,0.8), 0 0 16px rgba(0,255,0,0.5), inset 0 1px 1px rgba(255,255,255,0.3); }
+}
+
+/* Petit bouton décoratif volume/speed */
+#speed-knob {
+    position: absolute;
+    bottom: 16px;
+    right: 42px;
+    width: 14px;
+    height: 14px;
+    background: radial-gradient(circle at 35% 35%, #555, #1a1a1a);
+    border-radius: 50%;
+    z-index: 12;
+    border: 1px solid #000;
+    box-shadow:
+            0 2px 5px rgba(0,0,0,0.7),
+            inset 0 1px 2px rgba(255,255,255,0.15);
+}
+
+/* Encoche du bouton */
+#speed-knob::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1.5px;
+    height: 4px;
+    background: #888;
+    border-radius: 1px;
+}
+
+#knob-2 {
+    position: absolute;
+    bottom: 36px;
+    right: 43px;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 35% 35%, #504030, #2a1f15);
+    border-radius: 50%;
+    z-index: 12;
+    border: 1px solid #1a1208;
+    box-shadow:
+            0 2px 4px rgba(0,0,0,0.6),
+            inset 0 1px 2px rgba(255,255,255,0.1);
+}
+
+#knob-2::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 3px;
+    background: #8a7a6a;
+    border-radius: 1px;
+}
+
+#knob-3 {
+    position: absolute;
+    bottom: 52px;
+    right: 43px;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 35% 35%, #504030, #2a1f15);
+    border-radius: 50%;
+    z-index: 12;
+    border: 1px solid #1a1208;
+    box-shadow:
+            0 2px 4px rgba(0,0,0,0.6),
+            inset 0 1px 2px rgba(255,255,255,0.1);
+}
+
+#knob-3::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 3px;
+    background: #8a7a6a;
+    border-radius: 1px;
+}
+
+/* =========================================================
+   PLATEAU & VINYLE RÉALISTE
+========================================================= */
+.platter {
+    position: absolute;
+    top: 50%;
+    left: 42%;
+    transform: translate(-50%, -50%);
+    width: 340px;
+    height: 340px;
+    background:
+            radial-gradient(circle, #1a1a1a 0%, #111 60%, #080808 100%);
+    border-radius: 50%;
+    border-bottom: 5px solid #000;
+    box-shadow:
+            0 10px 20px rgba(0,0,0,0.6),
+            0 0 0 2px #1a1a1a,
+            0 0 0 4px #0a0a0a;
+    z-index: 2;
+}
+
+.vinyl {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background:
+            radial-gradient(circle at center, transparent 29.5%, #0a0a0a 29.8%, #0a0a0a 30.2%, transparent 30.5%),
+            radial-gradient(circle at center, transparent 54.5%, #0a0a0a 54.8%, #0a0a0a 55.2%, transparent 55.5%),
+            radial-gradient(circle at center, transparent 79.5%, #0a0a0a 79.8%, #0a0a0a 80.2%, transparent 80.5%),
+            repeating-radial-gradient(
+                    circle at center,
+                    #1a1a1a 0px,
+                    #0d0d0d 2px,
+                    #1a1a1a 4px
+            );
+    box-shadow:
+            inset 0 0 50px rgba(0,0,0,0.9),
+            inset 0 0 10px rgba(0,0,0,0.5);
+    z-index: 2;
+}
+
+/* =========================================================
+   REFLET ARC-EN-CIEL SUR LES SILLONS (réaliste)
+========================================================= */
+.vinyl-reflection {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background:
+        /* Arc lumineux principal — comme la lumière frappant un vrai disque */
+            conic-gradient(
+                    from 200deg at 50% 50%,
+                    transparent 0deg,
+                    transparent 30deg,
+                    rgba(100, 180, 255, 0.04) 40deg,
+                    rgba(150, 120, 255, 0.06) 50deg,
+                    rgba(255, 200, 150, 0.08) 60deg,
+                    rgba(255, 255, 255, 0.1) 70deg,
+                    rgba(255, 200, 150, 0.08) 80deg,
+                    rgba(150, 120, 255, 0.06) 90deg,
+                    rgba(100, 180, 255, 0.04) 100deg,
+                    transparent 110deg,
+                    transparent 360deg
+            ),
+                /* Second arc plus faible opposé */
+            conic-gradient(
+                    from 30deg at 50% 50%,
+                    transparent 0deg,
+                    transparent 40deg,
+                    rgba(255, 255, 255, 0.03) 55deg,
+                    rgba(200, 220, 255, 0.05) 65deg,
+                    rgba(255, 255, 255, 0.03) 75deg,
+                    transparent 90deg,
+                    transparent 360deg
+            ),
+            linear-gradient(
+                    160deg,
+                    rgba(255,255,255,0.1) 0%,
+                    rgba(255,255,255,0.04) 15%,
+                    transparent 30%,
+                    transparent 45%,
+                    rgba(255,255,255,0.03) 55%,
+                    rgba(255,255,255,0.06) 70%,
+                    transparent 85%,
+                    transparent 100%
+            ),
+            radial-gradient(
+                    ellipse at 35% 35%,
+                    rgba(255,255,255,0.06) 0%,
+                    transparent 50%
+            );
+    z-index: 5;
+    pointer-events: none;
+}
+
+.vinyl::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(
+            120deg,
+            rgba(255,255,255,0.05) 0%,
+            rgba(255,255,255,0.02) 15%,
+            rgba(255,255,255,0) 35%,
+            rgba(255,255,255,0) 65%,
+            rgba(255,255,255,0.015) 85%,
+            rgba(255,255,255,0.04) 100%
+    );
+    z-index: 6;
+    pointer-events: none;
+}
+
+/* ZONES DE PRESSAGE */
+.groove {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.15);
+    z-index: 4;
+    pointer-events: none;
+}
+.groove-1 { inset: 35px; }
+.groove-2 { inset: 65px; }
+.groove-3 { inset: 95px; }
+.groove-4 { inset: 50px; }
+
+/* =========================================================
+   MACARON & CENTRE
+========================================================= */
+#vinyl-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 140px;
+    height: 140px;
+    background: #222;
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 5;
+    border: 3px solid #111;
+    box-shadow:
+            0 0 15px rgba(0,0,0,0.6),
+            inset 0 0 8px rgba(0,0,0,0.5);
+}
+
+/* Reflet brillant sur le label (comme un sticker vinyle) */
+#vinyl-label::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background:
+            linear-gradient(
+                    135deg,
+                    rgba(255,255,255,0.15) 0%,
+                    rgba(255,255,255,0.05) 20%,
+                    transparent 45%,
+                    transparent 100%
+            );
+    z-index: 8;
+    pointer-events: none;
+}
+
+#record-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+#vinyl-hole {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle, #000 50%, #1a1a1a 100%);
+    border-radius: 50%;
+    z-index: 6;
+    box-shadow:
+            inset 0 1px 3px #000,
+            0 0 2px rgba(255,255,255,0.1);
+}
+
+#vinyl-hole::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 4px;
+    background: radial-gradient(circle at 30% 30%, #ccc, #555);
+    border-radius: 50%;
+    box-shadow: 0 0 2px rgba(0,0,0,0.8);
+}
+
+/* =========================================================
+   OMBRE DU BRAS SUR LE DISQUE
+========================================================= */
+#tonearm-shadow {
+    position: absolute;
+    top: 50%;
+    left: 42%;
+    transform: translate(-50%, -50%);
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 7;
+    pointer-events: none;
+}
+
+#tonearm-shadow-inner {
+    position: absolute;
+    top: -30px;
+    right: -15px;
+    width: 8px;
+    height: 180px;
+    background: rgba(0,0,0,0.25);
+    filter: blur(6px);
+    transform-origin: top center;
+    transform: rotate(22deg);
+    border-radius: 4px;
+}
+
+/* =========================================================
+   TIGE (TONEARM) — REPOSITIONNÉ + CHROME RÉALISTE
+========================================================= */
+#tonearm-container {
+    position: absolute;
+    top: 8px;
+    right: 2px;
+    width: 80px;
+    height: 80px;
+    transform-origin: 40px 40px;
+    transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+    filter: drop-shadow(-6px 10px 8px rgba(0,0,0,0.7));
+}
+
+/* Socle du pivot — chrome brossé */
+#tonearm-base {
+    position: absolute;
+    inset: 10px;
+    background:
+            radial-gradient(circle at 30% 30%, #888, #444 40%, #222 70%, #0a0a0a);
+    border-radius: 50%;
+    border: 1px solid #1a1a1a;
+    box-shadow:
+            0 4px 12px rgba(0,0,0,0.9),
+            0 1px 2px rgba(0,0,0,0.5),
+            inset 0 2px 4px rgba(255,255,255,0.25),
+            inset 0 -2px 4px rgba(0,0,0,0.6);
+}
+
+/* Vis centrale du pivot — acier poli */
+#tonearm-base::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background:
+            radial-gradient(circle at 30% 30%, #ddd, #999 40%, #444 80%);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+            inset 0 1px 3px rgba(255,255,255,0.5),
+            inset 0 -1px 2px rgba(0,0,0,0.4),
+            0 2px 4px rgba(0,0,0,0.8);
+}
+
+/* Encoche en croix sur la vis */
+#tonearm-base::before {
+    content: "";
+    position: absolute;
+    width: 8px;
+    height: 1px;
+    background: rgba(0,0,0,0.4);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    box-shadow: 0 0 0 0 transparent;
+}
+
+/* Bras principal — tube chrome réaliste */
+#tonearm {
+    position: absolute;
+    top: 40px;
+    left: 36px;
+    width: 5px;
+    height: 195px;
+    background:
+            linear-gradient(to right,
+            #333 0%,
+            #888 10%,
+            #ccc 25%,
+            #f0f0f0 40%,
+            #fff 50%,
+            #f0f0f0 60%,
+            #ccc 75%,
+            #888 90%,
+            #333 100%
+            );
+    border-radius: 2.5px;
+    transform-origin: top center;
+    transform: rotate(-8deg);
+    box-shadow:
+            1px 0 2px rgba(0,0,0,0.3),
+            -1px 0 2px rgba(0,0,0,0.3);
+}
+
+/* Contrepoids — boule chrome repositionnée (au-dessus, HORS du vinyle) */
+#tonearm::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 22px;
+    background:
+            radial-gradient(circle at 35% 30%,
+            #eee 0%,
+            #bbb 20%,
+            #777 50%,
+            #333 80%,
+            #111 100%
+            );
+    border-radius: 50%;
+    box-shadow:
+            0 3px 10px rgba(0,0,0,0.8),
+            0 1px 3px rgba(0,0,0,0.5),
+            inset 0 2px 4px rgba(255,255,255,0.4),
+            inset 0 -2px 3px rgba(0,0,0,0.3);
+}
+
+/* Bague de réglage sur le contrepoids */
+#tonearm::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 5px;
+    background: linear-gradient(to bottom, #555, #222);
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Tête de lecture (headshell) — métal brossé */
+#tonearm-head {
+    position: absolute;
+    bottom: -22px;
+    left: -10px;
+    width: 24px;
+    height: 28px;
+    background:
+            linear-gradient(160deg, #444 0%, #222 30%, #111 60%, #000 100%);
+    border-radius: 3px 3px 2px 2px;
+    transform: rotate(20deg);
+    border-left: 1px solid #555;
+    border-top: 1px solid #444;
+    box-shadow:
+            0 4px 10px rgba(0,0,0,0.8),
+            inset 0 1px 2px rgba(255,255,255,0.15),
+            inset 0 -1px 2px rgba(0,0,0,0.5);
+}
+
+/* Cellule (cartridge) */
+#tonearm-head::before {
+    content: "";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 10px;
+    background:
+            linear-gradient(to bottom, #555, #333, #222);
+    border-radius: 2px;
+    box-shadow:
+            0 2px 4px rgba(0,0,0,0.6),
+            inset 0 1px 1px rgba(255,255,255,0.1);
+}
+
+/* Aiguille (stylus) */
+#tonearm-head::after {
+    content: "";
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1.5px;
+    height: 8px;
+    background: linear-gradient(to bottom, #ccc, #888, #444);
+    border-radius: 0 0 1px 1px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
