@@ -137,6 +137,7 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                             artist: "".into(),
                             album: "".into(),
                             cover_url: None,
+                            is_playing: false,
                         }));
                     }
                 } else {
@@ -146,6 +147,7 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                         artist: "".into(),
                         album: "".into(),
                         cover_url: None,
+                        is_playing: false,
                     }));
                 }
             }
@@ -159,6 +161,7 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                             artist: "".into(),
                             album: "".into(),
                             cover_url: None,
+                            is_playing: false,
                         }));
                     }
                     Err(_) => {
@@ -168,6 +171,7 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                             artist: "".into(),
                             album: "".into(),
                             cover_url: None,
+                            is_playing: false,
                         }));
                     }
                 }
@@ -175,12 +179,14 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
             let current = np_spotify.current_playing(None, Option::<Vec<&AdditionalType>>::None).await;
             let track_info = match current {
                 Ok(Some(ctx)) => {
+                    let playing = ctx.is_playing;
                     if let Some(PlayableItem::Track(track)) = ctx.item {
                         let info = TrackInfo {
                             title: track.name.clone(),
                             artist: track.artists.get(0).map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".into()),
                             album: track.album.name.clone(),
                             cover_url: track.album.images.get(0).map(|img| img.url.clone()),
+                            is_playing: playing,
                         };
 
                         let current_id = format!("{} - {} ({})", info.title, info.artist, info.album);
@@ -196,22 +202,22 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                             let elapsed = now.signed_duration_since(start_time);
                             if elapsed >= ChronoDuration::seconds(CONFIRMATION_DELAY_SECS) {
                                 log_play(&format!("🎵 Lecture en cours : {}", current_id));
-                                *last_start = Some(now + ChronoDuration::seconds(9999)); // empêche de reloguer
+                                *last_start = Some(now + ChronoDuration::seconds(9999));
                             }
                         }
                         info
                     } else {
                         log_play("ℹ️ Aucun morceau en cours");
-                        TrackInfo { title: "No track".into(), artist: "".into(), album: "".into(), cover_url: None }
+                        TrackInfo { title: "No track".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                     }
                 }
                 Ok(None) => {
-                    log_play("ℹ️ Rien n’est en cours de lecture");
-                    TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None }
+                    log_play("ℹ️ Rien n'est en cours de lecture");
+                    TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
                 Err(err) => {
                     log_play(&format!("❌ Erreur Spotify : {:?}", err));
-                    TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None }
+                    TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
             };
 
@@ -233,3 +239,4 @@ pub fn done_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
         "#)
     })
 }
+

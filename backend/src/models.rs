@@ -6,4 +6,5 @@ pub struct TrackInfo {
     pub artist: String,
     pub album: String,
     pub cover_url: Option<String>,
+    pub is_playing: bool,
 }
