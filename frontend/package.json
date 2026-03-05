@@ -1,21 +1,29 @@
 {
   "name": "vinyl-view",
-  "version": "2.1.0",
+  "version": "3.0.0",
+  "description": "Spotify now-playing visualizer with animated vinyl turntable",
+  "author": "Navexd",
+  "license": "MIT",
   "main": "main.js",
+  "type": "commonjs",
+
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
-    "build:all": "electron-builder --win --linux",
-    "build": "electron-builder"
+    "build:all": "electron-builder --win --linux"
   },
+
   "dependencies": {
     "electron-is-dev": "^3.0.1"
   },
+
   "devDependencies": {
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12"
   },
+
   "build": {
     "appId": "com.vinyl.view",
     "productName": "VinylView",
@@ -66,11 +74,5 @@
       "createStartMenuShortcut": true,
       "createDesktopShortcut": true
     }
-  },
-
-  "description": "",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  }
 }
