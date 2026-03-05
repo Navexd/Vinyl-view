@@ -3,21 +3,32 @@
 <head>
     <meta charset="UTF-8" />
     <title>Vinyl View</title>
+
+    <!-- Styles -->
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="record_player/record_player.css" />
+
+    <!-- Librairie extraction couleurs -->
     <script src="lib/color-thief.umd.js"></script>
 </head>
 <body>
 
+<!-- ======================== -->
+<!-- Fond animé (2 couches pour transition douce) -->
+<!-- ======================== -->
 <div id="bg-container" class="effect-float">
     <div id="bg-layer1" class="bg-layer"></div>
     <div id="bg-layer2" class="bg-layer"></div>
 </div>
 
+<!-- ======================== -->
+<!-- Lecteur principal -->
+<!-- ======================== -->
 <div id="player">
-    <div id="cover-wrapper">
-        <img id="cover-back" crossorigin="anonymous" alt="Cover" />
-        <img id="cover-front" crossorigin="anonymous" alt="Cover" />
-    </div>
+    <!-- Tourne-disque (injecté par record_player.js) -->
+    <div id="record-player-container"></div>
+
+    <!-- Infos du morceau -->
     <div id="track-info">
         <div id="title">Titre en cours...</div>
         <div id="artist">Artiste</div>
@@ -25,10 +36,18 @@
     </div>
 </div>
 
-
-
+<!-- ======================== -->
+<!-- Bouton changement d'effet de fond -->
+<!-- ======================== -->
 <button id="styleBtn">Float</button>
 
+<!-- Image cachée pour l'extraction de couleurs -->
+<img id="hidden-color-source" crossorigin="anonymous" style="display: none;" alt="color source" />
+
+<!-- ======================== -->
+<!-- Scripts -->
+<!-- ======================== -->
+<script src="record_player/record_player.js"></script>
 <script src="app.js"></script>
 
 </body>

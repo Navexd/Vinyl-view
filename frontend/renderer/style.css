@@ -1,14 +1,20 @@
 /* =========================================================
-   VARIABLES
+   style.css — Vinyl View
+   Styles globaux, fond animé et effets visuels
+========================================================= */
+
+/* =========================================================
+   VARIABLES COULEURS
+   Mises à jour dynamiquement par app.js
 ========================================================= */
 :root {
-    --c1: #444;
-    --c2: #333;
-    --c3: #222;
+    --c1: #444; /* Couleur principale (la plus vive) */
+    --c2: #333; /* Couleur secondaire */
+    --c3: #222; /* Couleur sombre */
 }
 
 /* =========================================================
-   BASE
+   RESET & BASE
 ========================================================= */
 html, body {
     margin: 0;
@@ -20,7 +26,7 @@ html, body {
 }
 
 /* =========================================================
-   BACKGROUND ROOT
+   FOND ANIMÉ — Conteneur
 ========================================================= */
 #bg-container {
     position: fixed;
@@ -30,7 +36,7 @@ html, body {
 }
 
 /* =========================================================
-   BACKGROUND LAYERS
+   FOND ANIMÉ — Couches (2 layers pour transitions douces)
 ========================================================= */
 .bg-layer {
     position: absolute;
@@ -52,101 +58,93 @@ html, body {
 }
 
 /* =========================================================
-   PLAYER
+   LECTEUR — Layout vertical centré
 ========================================================= */
 #player {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    position: relative;
+    z-index: 10;
     display: flex;
     flex-direction: column;
     align-items: center;
-    text-align: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 30px;
     color: white;
-    z-index: 10;
-}
-
-#cover-wrapper {
-    position: relative;
-    width: 350px;
-    height: 350px;
-    flex-shrink: 0;
-    margin-bottom: 20px;
-}
-
-#cover-front,
-#cover-back {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 350px;
-    height: 350px;
-    border-radius: 16px;
-    object-fit: cover;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-    transition: opacity 0.8s ease;
-}
-
-#cover-back  { opacity: 1; }
-#cover-front { opacity: 0; }
-
-#track-info {
-    width: 350px;
-    max-width: 90vw;
     text-align: center;
+}
+
+/* Conteneur du tourne-disque (injecté par JS) */
+#record-player-container {
+    width: 380px;
+    height: 380px;
+    flex-shrink: 0;
+}
+
+/* =========================================================
+   INFOS MORCEAU
+========================================================= */
+#track-info {
+    max-width: 600px;
+    margin-top: 20px;
 }
 
 #title {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 4px 0;
-    white-space: normal;
-    word-break: break-word;
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+    letter-spacing: -0.5px;
 }
 
 #artist {
-    font-size: 15px;
-    font-weight: 500;
-    margin: 2px 0;
-    white-space: normal;
-    word-break: break-word;
+    font-size: 1.1rem;
+    font-weight: 400;
+    margin: 0;
+    color: var(--c1);
+    filter: brightness(1.2);
+    opacity: 0.9;
 }
 
 #album {
-    font-size: 13px;
-    opacity: 0.7;
-    white-space: normal;
-    word-break: break-word;
+    font-size: 0.8rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 12px;
+    opacity: 0.4;
+}
+
+/* Pas d'ombre sur le texte — on reste minimal */
+#title, #artist, #album {
+    text-shadow: none;
 }
 
 /* =========================================================
-   BUTTON
+   BOUTON CHANGEMENT D'EFFET
 ========================================================= */
 #styleBtn {
     position: fixed;
-    top: 40px;
-    right: 35px;
-    padding: 10px 18px;
-    background: rgba(255,255,255,0.30);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.55);
-    border-radius: 12px;
-    color: #fff;
-    font-weight: 600;
-    font-size: 14px;
+    bottom: 30px;
+    right: 30px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 30px;
     cursor: pointer;
-    z-index: 20;
-    transition: 0.25s ease;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
 }
 
 #styleBtn:hover {
-    background: rgba(255,255,255,0.55);
-    transform: scale(1.06);
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
 }
 
 /* =========================================================
-   FLOAT EFFECT
+   EFFET : FLOAT
+   Deux gradients radiaux qui flottent lentement
 ========================================================= */
 .effect-float #bg-layer1 {
     filter: blur(80px);
@@ -174,26 +172,24 @@ html, body {
     animation: floatMove2 32s ease-in-out infinite;
 }
 
-/* =========================================================
-   FLOAT ANIMATIONS
-========================================================= */
 @keyframes floatMove1 {
-    0%   { transform: translate(0%, 0%)   scale(1); }
-    25%  { transform: translate(15%, 20%) scale(1.1); }
+    0%   { transform: translate(0%, 0%)    scale(1);    }
+    25%  { transform: translate(15%, 20%)  scale(1.1);  }
     50%  { transform: translate(-10%, 15%) scale(0.95); }
     75%  { transform: translate(20%, -10%) scale(1.05); }
-    100% { transform: translate(0%, 0%)   scale(1); }
+    100% { transform: translate(0%, 0%)    scale(1);    }
 }
 
 @keyframes floatMove2 {
-    0%   { transform: translate(0%, 0%)    scale(1); }
+    0%   { transform: translate(0%, 0%)     scale(1);    }
     30%  { transform: translate(-20%, -15%) scale(1.08); }
-    60%  { transform: translate(10%, -20%) scale(0.92); }
-    100% { transform: translate(0%, 0%)    scale(1); }
+    60%  { transform: translate(10%, -20%)  scale(0.92); }
+    100% { transform: translate(0%, 0%)     scale(1);    }
 }
 
 /* =========================================================
-   WAVE EFFECT
+   EFFET : WAVE
+   Deux ellipses en mouvement diagonal opposé
 ========================================================= */
 .effect-wave #bg-layer1 {
     filter: blur(85px);
@@ -206,7 +202,7 @@ html, body {
     height: 260%;
     top: -80%;
     left: -80%;
-    animation: waveDiag1 28s ease-in-out infinite;
+    animation: waveDiag 28s ease-in-out infinite;
 }
 
 .effect-wave #bg-layer2 {
@@ -220,21 +216,19 @@ html, body {
     height: 260%;
     top: -80%;
     left: -80%;
-    animation: waveDiag1 28s ease-in-out infinite;
-    animation-delay: -14s;
+    animation: waveDiag 28s ease-in-out infinite;
+    animation-delay: -14s; /* Déphasé de moitié */
 }
 
-/* =========================================================
-   WAVE ANIMATIONS
-========================================================= */
-@keyframes waveDiag1 {
-    0%   { transform: translate(30%, 30%); }
+@keyframes waveDiag {
+    0%   { transform: translate(30%, 30%);   }
     50%  { transform: translate(-30%, -30%); }
-    100% { transform: translate(30%, 30%); }
+    100% { transform: translate(30%, 30%);   }
 }
 
 /* =========================================================
-   PULSE EFFECT
+   EFFET : PULSE
+   Pulsation d'opacité et de scale, effet respiration
 ========================================================= */
 .effect-pulse #bg-layer1 {
     filter: blur(80px);
@@ -264,9 +258,7 @@ html, body {
     animation: pulseGlow2 14s ease-in-out infinite;
 }
 
-/* =========================================================
-   PULSE ANIMATIONS — même durée, complémentaires
-========================================================= */
+/* Les deux animations sont complémentaires (même durée, phases inversées) */
 @keyframes pulseGlow1 {
     0%   { opacity: 0.6;  transform: scale(0.97); }
     25%  { opacity: 0.9;  transform: scale(1.05); }
