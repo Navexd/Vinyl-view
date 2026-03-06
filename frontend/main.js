@@ -1,5 +1,5 @@
 // main.js
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -13,6 +13,8 @@ const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDev
 // --- Variables globales ---
 let backend;
 let win;
+
+const BACKEND_BASE_URL = 'http://127.0.0.1:3000';
 
 //
 // -------- LOG SYSTEM --------
@@ -63,6 +65,26 @@ function getRendererPath() {
         : path.join(process.resourcesPath, "renderer", "index.html");
 }
 
+function getPreloadPath() {
+    return isDev
+        ? path.join(__dirname, "renderer", "preload.js")
+        : path.join(process.resourcesPath, "renderer", "preload.js");
+}
+
+function isAllowedUrl(targetUrl) {
+    try {
+        const url = new URL(targetUrl);
+        return (
+            url.origin === 'https://accounts.spotify.com' ||
+            targetUrl.startsWith(`${BACKEND_BASE_URL}/login`) ||
+            targetUrl.startsWith(`${BACKEND_BASE_URL}/callback`) ||
+            targetUrl.startsWith(`${BACKEND_BASE_URL}/done`)
+        );
+    } catch {
+        return false;
+    }
+}
+
 //
 // -------- ELECTRON WINDOW --------
 //
@@ -71,16 +93,54 @@ function createWindow() {
         width: 1200,
         height: 800,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            preload: getPreloadPath(),
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            webSecurity: true
         }
     });
 
-    // ✔ Supprimer la barre de menu en version release
     if (!isDev) {
         win.setMenuBarVisibility(true);
         win.removeMenu();
     }
+
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        if (isAllowedUrl(url)) {
+            return {
+                action: 'allow',
+                overrideBrowserWindowOptions: {
+                    width: 500,
+                    height: 700,
+                    autoHideMenuBar: true,
+                    webPreferences: {
+                        nodeIntegration: false,
+                        contextIsolation: true,
+                        sandbox: true,
+                        webSecurity: true
+                    }
+                }
+            };
+        }
+
+        log("⛔ Popup bloquée:", url);
+        return { action: 'deny' };
+    });
+
+    win.webContents.on('will-navigate', (event, url) => {
+        const rendererPath = getRendererPath();
+        const fileUrl = new URL(`file://${rendererPath}`);
+
+        if (url !== fileUrl.href) {
+            event.preventDefault();
+            if (isAllowedUrl(url)) {
+                shell.openExternal(url).catch((err) => log("Erreur shell.openExternal:", err));
+            } else {
+                log("⛔ Navigation bloquée:", url);
+            }
+        }
+    });
 
     const rendererPath = getRendererPath();
     log("Renderer path:", rendererPath);
@@ -126,12 +186,14 @@ function startBackend() {
 
     backend = spawn(backendPath, [], {
         cwd: path.dirname(backendPath),
-        detached: false
+        detached: false,
+        stdio: ['ignore', 'pipe', 'pipe']
     });
 
     backend.stdout.on("data", (d) => log("[backend]", d.toString()));
     backend.stderr.on("data", (d) => log("[backend ERR]", d.toString()));
-    backend.on("close", (code) => log("Backend arrêté, code:", code));
+    backend.on("close", (code, signal) => log("Backend arrêté, code:", code, "signal:", signal));
+    backend.on("error", (err) => log("Erreur lancement backend:", err));
 }
 
 //

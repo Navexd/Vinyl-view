@@ -11,6 +11,8 @@ const container         = document.getElementById("bg-container");
 const styleBtn          = document.getElementById("styleBtn");
 const hiddenColorSource = document.getElementById("hidden-color-source");
 
+const BACKEND_BASE_URL = window.vinylView?.backendBaseUrl || "http://127.0.0.1:3000";
+
 // ========================================
 // ÉTAT GLOBAL
 // ========================================
@@ -307,10 +309,34 @@ document.addEventListener("DOMContentLoaded", () => {
     RecordPlayer.init("record-player-container");
 
     /** Interroge l'API toutes les 2 secondes */
+    let authPopupOpened = false;
+
     async function fetchNowPlaying() {
         try {
-            const res  = await fetch("http://127.0.0.1:3000/now-playing");
+            const res = await fetch(`${BACKEND_BASE_URL}/now-playing`, {
+                method: "GET",
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+
             const data = await res.json();
+
+            if (data.title === "Auth required") {
+                if (!authPopupOpened) {
+                    authPopupOpened = true;
+                    if (window.vinylView?.openLogin) {
+                        window.vinylView.openLogin();
+                    } else {
+                        window.open(`${BACKEND_BASE_URL}/login`, "_blank", "width=500,height=700");
+                    }
+                }
+                return;
+            }
+
+            authPopupOpened = false;
             updateUI(data);
         } catch (e) {
             console.log("API hors ligne");

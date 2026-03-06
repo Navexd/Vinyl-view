@@ -1,6 +1,6 @@
 {
   "name": "vinyl-view",
-  "version": "3.0.0",
+  "version": "3.2.1",
   "description": "Spotify now-playing visualizer with animated vinyl turntable",
   "author": "Navexd",
   "license": "MIT",
@@ -27,16 +27,20 @@
   "build": {
     "appId": "com.vinyl.view",
     "productName": "VinylView",
-
+    "asar": true,
     "directories": {
       "output": "release"
     },
-
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "!release/**/*",
+      "!backend-linux/**/*",
+      "!backend-win/**/*",
+      "!log/**/*",
+      "!lab/**/*",
+      "!mammouth.txt"
     ],
-
     "extraResources": [
       {
         "from": "renderer",
@@ -44,7 +48,6 @@
         "filter": ["**/*"]
       }
     ],
-
     "linux": {
       "target": ["AppImage"],
       "category": "AudioVideo",
