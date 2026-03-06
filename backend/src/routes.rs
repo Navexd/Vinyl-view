@@ -3,39 +3,86 @@ use rspotify::prelude::*;
 use rspotify::model::{AdditionalType, PlayableItem};
 use crate::models::TrackInfo;
 use crate::token::save_token_to_file;
-use rspotify::AuthCodeSpotify;
+use rspotify::AuthCodePkceSpotify;
 use crate::logger::{log_play, log_to_file};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{Local, Duration as ChronoDuration, DateTime};
+use serde::Deserialize;
+use tokio::time::{timeout, Duration};
 
-pub fn login_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+#[derive(Deserialize)]
+struct CallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+}
+
+fn extract_query_param(url: &str, key: &str) -> Option<String> {
+    let (_, query) = url.split_once('?')?;
+    for pair in query.split('&') {
+        let (k, v) = pair.split_once('=')?;
+        if k == key {
+            return Some(v.to_string());
+        }
+    }
+    None
+}
+
+pub fn login_route(
+    spotify: Arc<Mutex<AuthCodePkceSpotify>>
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let login_spotify = spotify.clone();
-    warp::path("login").map(move || {
-        let url = login_spotify.get_authorize_url(false).unwrap();
-        warp::reply::html(format!(
-            r#"
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <title>Redirection Spotify</title>
-                <script>
-                  window.location.href = "{url}";
-                </script>
-              </head>
-              <body>
-                <p>Redirection vers Spotify...</p>
-              </body>
-            </html>
-            "#,
-            url = url
-        ))
+    warp::path("login").and_then(move || {
+        let login_spotify = login_spotify.clone();
+        async move {
+            let mut spotify = login_spotify.lock().await;
+
+            match spotify.get_authorize_url(None) {
+                Ok(url) => {
+                    let Some(state) = extract_query_param(&url, "state") else {
+                        log_to_file("❌ Impossible de récupérer le state OAuth PKCE");
+                        return Ok::<_, warp::reject::Rejection>(warp::reply::html(
+                            "<h1>Erreur OAuth</h1><p>Impossible de démarrer l'authentification.</p>".to_string()
+                        ));
+                    };
+
+                    {
+                        let mut state_guard = OAUTH_STATE.lock().await;
+                        *state_guard = Some(state);
+                    }
+
+                    log_to_file("✅ URL OAuth PKCE générée avec state");
+                    Ok::<_, warp::reject::Rejection>(warp::reply::html(format!(
+                        r#"
+                        <html>
+                          <head>
+                            <meta charset="utf-8">
+                            <title>Redirection Spotify</title>
+                            <script>
+                              window.location.href = "{url}";
+                            </script>
+                          </head>
+                          <body>
+                            <p>Redirection vers Spotify...</p>
+                          </body>
+                        </html>
+                        "#,
+                        url = url
+                    )))
+                }
+                Err(_) => {
+                    log_to_file("❌ Impossible de générer l'URL OAuth PKCE");
+                    Ok::<_, warp::reject::Rejection>(warp::reply::html(
+                        "<h1>Erreur OAuth</h1><p>Impossible de démarrer l'authentification.</p>".to_string()
+                    ))
+                }
+            }
+        }
     })
 }
 
-use tokio::time::{timeout, Duration};
-
-pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn status_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let status_spotify = spotify.clone();
     warp::path("status").and_then(move || {
         let status_spotify = status_spotify.clone();
@@ -59,14 +106,15 @@ pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp
                     return Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"));
                 }
             }
+
             if needs_refresh {
                 match timeout(Duration::from_secs(3), status_spotify.refresh_token()).await {
                     Ok(Ok(_)) => {
                         log_to_file("✅ Refresh réussi → ready");
                         Ok::<_, warp::reject::Rejection>(warp::reply::json(&"ready"))
                     }
-                    Ok(Err(err)) => {
-                        log_to_file(&format!("❌ Refresh échoué : {:?}", err));
+                    Ok(Err(_)) => {
+                        log_to_file("❌ Refresh échoué");
                         Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"))
                     }
                     Err(_) => {
@@ -82,28 +130,78 @@ pub fn status_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp
     })
 }
 
-pub fn callback_route(spotify: AuthCodeSpotify, token_path: String) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn callback_route(
+    spotify: Arc<Mutex<AuthCodePkceSpotify>>,
+    token_path: String
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let callback_spotify = spotify.clone();
     warp::path("callback")
-        .and(warp::query::query::<std::collections::HashMap<String, String>>())
-        .and_then(move |params: std::collections::HashMap<String, String>| {
+        .and(warp::query::query::<CallbackQuery>())
+        .and_then(move |params: CallbackQuery| {
             let callback_spotify = callback_spotify.clone();
             let token_path = token_path.clone();
             async move {
-                if let Some(code) = params.get("code") {
-                    callback_spotify.request_token(code).await.unwrap();
-                    if let Ok(guard) = callback_spotify.token.lock().await {
-                        if let Some(token) = guard.as_ref() {
-                            save_token_to_file(&token_path, token).await;
+                if let Some(error) = params.error {
+                    log_to_file(&format!("❌ OAuth refusé ou invalide: {}", error));
+                    {
+                        let mut state_guard = OAUTH_STATE.lock().await;
+                        *state_guard = None;
+                    }
+                    let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("OAuth error"));
+                    return Ok::<_, warp::reject::Rejection>(reply);
+                }
+
+                let expected_state = {
+                    let state_guard = OAUTH_STATE.lock().await;
+                    state_guard.clone()
+                };
+
+                match (
+                    params.code.as_deref(),
+                    params.state.as_deref(),
+                    expected_state.as_deref()
+                ) {
+                    (Some(code), Some(received_state), Some(expected)) if received_state == expected => {
+                        let spotify = callback_spotify.lock().await;
+
+                        match spotify.request_token(code).await {
+                            Ok(_) => {
+                                if let Ok(guard) = spotify.token.lock().await {
+                                    if let Some(token) = guard.as_ref() {
+                                        save_token_to_file(&token_path, token).await;
+                                    }
+                                }
+
+                                {
+                                    let mut state_guard = OAUTH_STATE.lock().await;
+                                    *state_guard = None;
+                                }
+
+                                let reply: Box<dyn warp::Reply> = Box::new(warp::redirect::temporary(
+                                    warp::http::Uri::from_static("/done"),
+                                ));
+                                Ok::<_, warp::reject::Rejection>(reply)
+                            }
+                            Err(_) => {
+                                log_to_file("❌ Échec de récupération du token Spotify");
+                                {
+                                    let mut state_guard = OAUTH_STATE.lock().await;
+                                    *state_guard = None;
+                                }
+                                let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Token exchange failed"));
+                                Ok::<_, warp::reject::Rejection>(reply)
+                            }
                         }
                     }
-                    let reply: Box<dyn warp::Reply> = Box::new(warp::redirect::temporary(
-                        warp::http::Uri::from_static("/done"),
-                    ));
-                    Ok::<_, warp::reject::Rejection>(reply)
-                } else {
-                    let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Missing code"));
-                    Ok::<_, warp::reject::Rejection>(reply)
+                    _ => {
+                        log_to_file("❌ Callback OAuth invalide: state manquant ou incorrect");
+                        {
+                            let mut state_guard = OAUTH_STATE.lock().await;
+                            *state_guard = None;
+                        }
+                        let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Invalid callback"));
+                        Ok::<_, warp::reject::Rejection>(reply)
+                    }
                 }
             }
         })
@@ -112,11 +210,12 @@ pub fn callback_route(spotify: AuthCodeSpotify, token_path: String) -> impl Filt
 lazy_static::lazy_static! {
     static ref LAST_TRACK_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     static ref LAST_TRACK_START: Arc<Mutex<Option<DateTime<Local>>>> = Arc::new(Mutex::new(None));
+    static ref OAUTH_STATE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 }
 
 const CONFIRMATION_DELAY_SECS: i64 = 20;
 
-pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let np_spotify = spotify.clone();
     warp::path("now-playing").and_then(move || {
         let np_spotify = np_spotify.clone();
@@ -154,8 +253,8 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
             if needs_refresh {
                 match timeout(Duration::from_secs(3), np_spotify.refresh_token()).await {
                     Ok(Ok(_)) => log_play("✅ Refresh réussi"),
-                    Ok(Err(err)) => {
-                        log_play(&format!("❌ Refresh échoué : {:?}", err));
+                    Ok(Err(_)) => {
+                        log_play("❌ Refresh échoué");
                         return Ok::<_, warp::reject::Rejection>(warp::reply::json(&TrackInfo {
                             title: "Auth required".into(),
                             artist: "".into(),
@@ -215,8 +314,8 @@ pub fn now_playing_route(spotify: AuthCodeSpotify) -> impl Filter<Extract = impl
                     log_play("ℹ️ Rien n'est en cours de lecture");
                     TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
-                Err(err) => {
-                    log_play(&format!("❌ Erreur Spotify : {:?}", err));
+                Err(_) => {
+                    log_play("❌ Erreur Spotify");
                     TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
             };
@@ -234,9 +333,12 @@ pub fn done_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
               <body>
                 <h2>Connexion réussie à Spotify</h2>
                 <p>Vous pouvez fermer cette fenêtre.</p>
+                <script>
+                  setTimeout(() => window.close(), 1500);
+                </script>
               </body>
             </html>
         "#)
     })
 }
-
+/* ok */

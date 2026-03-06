@@ -36,3 +36,4 @@ pub fn log_play(msg: &str) {
         let _ = writeln!(file, "[{}] {}", timestamp, msg);
     }
 }
+/* ok */
