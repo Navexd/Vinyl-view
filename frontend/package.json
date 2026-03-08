@@ -1,6 +1,6 @@
 {
   "name": "vinyl-view",
-  "version": "3.2.1",
+  "version": "3.2.4",
   "description": "Spotify now-playing visualizer with animated vinyl turntable",
   "author": "Navexd",
   "license": "MIT",
@@ -38,13 +38,17 @@
       "!backend-linux/**/*",
       "!backend-win/**/*",
       "!log/**/*",
-      "!lab/**/*",
-      "!mammouth.txt"
+      "!lab/**/*"
     ],
     "extraResources": [
       {
         "from": "renderer",
         "to": "renderer",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "assets",
+        "to": "assets",
         "filter": ["**/*"]
       }
     ],
@@ -62,6 +66,7 @@
 
     "win": {
       "target": ["nsis"],
+      "icon": "assets/vinyl.png",
       "extraResources": [
         {
           "from": "backend-win",

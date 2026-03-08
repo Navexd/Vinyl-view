@@ -302,47 +302,112 @@ styleBtn.onclick = () => {
 applyEffect("float");
 
 // ========================================
+// MODE ÉCO — idle / curseur masqué
+// ========================================
+const IDLE_TIMEOUT = 8000;    // 8s sans interaction → mode éco
+const POLL_NORMAL  = 2000;
+const POLL_ECO     = 4000;    // 4s en éco (pas trop lent pour rester réactif)
+
+let idleTimer      = null;
+let isIdle         = false;
+let pollInterval   = null;
+let currentPollRate = POLL_NORMAL;
+
+function enterEcoMode() {
+    if (isIdle) return;
+    isIdle = true;
+    document.body.classList.add("eco-mode");
+    setPollRate(POLL_ECO);
+}
+
+function exitEcoMode() {
+    if (!isIdle) return;
+    isIdle = false;
+    document.body.classList.remove("eco-mode");
+    setPollRate(POLL_NORMAL);
+    // Fetch immédiat pour réactivité
+    fetchNowPlaying();
+}
+
+function setPollRate(rate) {
+    if (rate === currentPollRate && pollInterval) return;
+    currentPollRate = rate;
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(fetchNowPlaying, rate);
+}
+
+function resetIdleTimer() {
+    exitEcoMode();
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(enterEcoMode, IDLE_TIMEOUT);
+}
+
+["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
+    document.addEventListener(evt, resetIdleTimer, { passive: true });
+});
+
+// ========================================
+// SCREENSAVER (Electron idle auto)
+// ========================================
+if (window.vinylView?.onScreensaverActivate) {
+    window.vinylView.onScreensaverActivate(() => {
+        console.log("🌙 Screensaver activé");
+        document.body.classList.add("eco-mode");
+    });
+}
+
+if (window.vinylView?.onScreensaverDeactivate) {
+    window.vinylView.onScreensaverDeactivate(() => {
+        console.log("☀️ Screensaver désactivé");
+        document.body.classList.remove("eco-mode");
+    });
+}
+
+// Sortir du screensaver au moindre input
+['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'].forEach(event => {
+    document.addEventListener(event, () => {
+        window.electronAPI.sendUserActivity();
+    }, { passive: true });
+});
+
+
+// ========================================
 // INITIALISATION & BOUCLE PRINCIPALE
 // ========================================
-document.addEventListener("DOMContentLoaded", () => {
-    // Initialise le composant tourne-disque
-    RecordPlayer.init("record-player-container");
+let authPopupOpened = false;
 
-    /** Interroge l'API toutes les 2 secondes */
-    let authPopupOpened = false;
+async function fetchNowPlaying() {
+    try {
+        const res = await fetch(`${BACKEND_BASE_URL}/now-playing`, {
+            method: "GET",
+            cache: "no-store"
+        });
 
-    async function fetchNowPlaying() {
-        try {
-            const res = await fetch(`${BACKEND_BASE_URL}/now-playing`, {
-                method: "GET",
-                cache: "no-store"
-            });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
 
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-
-            const data = await res.json();
-
-            if (data.title === "Auth required") {
-                if (!authPopupOpened) {
-                    authPopupOpened = true;
-                    if (window.vinylView?.openLogin) {
-                        window.vinylView.openLogin();
-                    } else {
-                        window.open(`${BACKEND_BASE_URL}/login`, "_blank", "width=500,height=700");
-                    }
+        if (data.title === "Auth required") {
+            if (!authPopupOpened) {
+                authPopupOpened = true;
+                if (window.vinylView?.openLogin) {
+                    window.vinylView.openLogin();
+                } else {
+                    window.open(`${BACKEND_BASE_URL}/login`, "_blank", "width=500,height=700");
                 }
-                return;
             }
-
-            authPopupOpened = false;
-            updateUI(data);
-        } catch (e) {
-            console.log("API hors ligne");
+            return;
         }
-    }
 
-    setInterval(fetchNowPlaying, 2000);
+        authPopupOpened = false;
+        updateUI(data);
+    } catch (e) {
+        console.log("API hors ligne");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    RecordPlayer.init("record-player-container");
     fetchNowPlaying();
+    pollInterval = setInterval(fetchNowPlaying, POLL_NORMAL);
+    idleTimer = setTimeout(enterEcoMode, IDLE_TIMEOUT);
 });

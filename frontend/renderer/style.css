@@ -12,6 +12,43 @@
     --c2: #333; /* Couleur secondaire */
     --c3: #222; /* Couleur sombre */
 }
+/* ========================================
+   MODE ÉCO — curseur masqué, UI discrète
+   ======================================== */
+
+.eco-mode {
+    cursor: none !important;
+}
+.eco-mode * {
+    cursor: none !important;
+}
+
+/* Masquer les contrôles en mode éco (PAS le player ni le fond) */
+.eco-mode #title,
+.eco-mode #artist,
+.eco-mode #album,
+.eco-mode #style-btn,
+.eco-mode .login-btn {
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+}
+
+/* Fond légèrement assombri, PAS noir */
+.eco-mode #bg-container {
+    filter: brightness(0.6);
+    transition: filter 1s ease;
+}
+
+/* Réapparition fluide */
+#title, #artist, #album, #style-btn, .login-btn {
+    transition: opacity 0.3s ease;
+}
+#bg-container {
+    transition: filter 0.5s ease;
+}
+
+
 
 /* =========================================================
    RESET & BASE
