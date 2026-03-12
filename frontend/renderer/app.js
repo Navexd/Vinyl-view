@@ -16,38 +16,28 @@ const BACKEND_BASE_URL = window.vinylView?.backendBaseUrl || "http://127.0.0.1:3
 // ========================================
 // ÉTAT GLOBAL
 // ========================================
-let currentCoverURL = "";                                   // URL de la pochette affichée
-let currentBoosted  = { c1: null, c2: null, c3: null };    // Couleurs actuellement appliquées (après boost)
-let animFrame       = null;                                 // ID de l'animation en cours
-let animStart       = null;                                 // Timestamp début animation
+let currentCoverURL = "";
+let currentBoosted  = { c1: null, c2: null, c3: null };
+let animFrame       = null;
+let animStart       = null;
 
-const TRANSITION_DURATION = 1200; // Durée transition couleurs (ms)
+const TRANSITION_DURATION = 1200;
 
 // ========================================
 // UTILITAIRES COULEUR
 // ========================================
 
-/** Luminance perçue (0–255) */
 function getLuminance([r, g, b]) {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** Saturation brute (0–255) */
 function getSaturation([r, g, b]) {
     return Math.max(r, g, b) - Math.min(r, g, b);
 }
 
-/**
- * Booste une couleur selon la luminosité moyenne de la pochette.
- * @param {number[]} color   - [r, g, b]
- * @param {number}   avgLum  - Luminance moyenne de la palette
- * @param {string}   role    - "light" | "mid" | "dark"
- * @returns {number[]} couleur boostée [r, g, b]
- */
 function boostColor(color, avgLum, role = "light") {
     let factor;
 
-    // Facteur de boost adaptatif selon la luminosité globale
     if      (avgLum < 30)  factor = role === "light" ? 3.2 : role === "mid" ? 2.4 : 1.6;
     else if (avgLum < 60)  factor = role === "light" ? 2.4 : role === "mid" ? 1.7 : 1.1;
     else if (avgLum < 100) factor = role === "light" ? 1.5 : role === "mid" ? 1.1 : 0.75;
@@ -56,7 +46,6 @@ function boostColor(color, avgLum, role = "light") {
 
     let [r, g, b] = color.map(v => Math.min(255, Math.round(v * factor)));
 
-    // Relève les couleurs trop sombres (sauf rôle "dark")
     if (role !== "dark") {
         const lum = getLuminance([r, g, b]);
         if (lum < 35) {
@@ -74,12 +63,10 @@ function boostColor(color, avgLum, role = "light") {
 // TRANSITION ANIMÉE DES COULEURS
 // ========================================
 
-/** Courbe d'accélération/décélération */
 function easeInOut(t) {
     return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
-/** Interpolation linéaire entre deux couleurs */
 function lerpColor(a, b, t) {
     if (!a || !b) return b || a;
     return [
@@ -89,11 +76,6 @@ function lerpColor(a, b, t) {
     ];
 }
 
-/**
- * Lance une animation de transition entre deux jeux de couleurs.
- * @param {Object} from - { c1, c2, c3 } couleurs de départ
- * @param {Object} to   - { c1, c2, c3 } couleurs d'arrivée
- */
 function animateColors(from, to) {
     if (animFrame) cancelAnimationFrame(animFrame);
     animStart = null;
@@ -103,18 +85,15 @@ function animateColors(from, to) {
         const elapsed = timestamp - animStart;
         const t = easeInOut(Math.min(elapsed / TRANSITION_DURATION, 1));
 
-        // Applique les couleurs interpolées
-        applyColorsRaw(
-            lerpColor(from.c1, to.c1, t),
-            lerpColor(from.c2, to.c2, t),
-            lerpColor(from.c3, to.c3, t)
-        );
+        const c1 = lerpColor(from.c1, to.c1, t);
+        const c2 = lerpColor(from.c2, to.c2, t);
+        const c3 = lerpColor(from.c3, to.c3, t);
+        applyColorsRaw(c1, c2, c3);
 
         if (t < 1) {
             animFrame = requestAnimationFrame(step);
         } else {
-            // Animation terminée — on sauvegarde les couleurs finales
-            currentBoosted = { c1: to.c1, c2: to.c2, c3: to.c3 };
+            currentBoosted = to;
             animFrame = null;
         }
     }
@@ -122,17 +101,12 @@ function animateColors(from, to) {
     animFrame = requestAnimationFrame(step);
 }
 
-/** Applique directement 3 couleurs aux variables CSS */
 function applyColorsRaw(c1, c2, c3) {
     document.documentElement.style.setProperty("--c1", `rgb(${c1.join(",")})`);
     document.documentElement.style.setProperty("--c2", `rgb(${c2.join(",")})`);
     document.documentElement.style.setProperty("--c3", `rgb(${c3.join(",")})`);
 }
 
-/**
- * Prépare et lance la transition de couleurs.
- * Premier appel = application immédiate, ensuite = animation douce.
- */
 function startColorTransition(c1, c2, c3, avgLum) {
     const boosted = {
         c1: boostColor(c1, avgLum, "light"),
@@ -140,14 +114,12 @@ function startColorTransition(c1, c2, c3, avgLum) {
         c3: boostColor(c3, avgLum, "dark")
     };
 
-    // Premier affichage : pas d'animation
     if (!currentBoosted.c1) {
         applyColorsRaw(boosted.c1, boosted.c2, boosted.c3);
         currentBoosted = boosted;
         return;
     }
 
-    // Transition animée depuis les couleurs actuelles
     animateColors({ ...currentBoosted }, { ...boosted });
 }
 
@@ -155,15 +127,9 @@ function startColorTransition(c1, c2, c3, avgLum) {
 // EXTRACTION DES COULEURS DE LA POCHETTE
 // ========================================
 
-/**
- * Analyse une image pour en extraire 3 couleurs clés
- * et lancer la transition de fond.
- * @param {HTMLImageElement} imgElement
- */
 function updateBackgroundFromCover(imgElement) {
     const colorThief = new ColorThief();
 
-    // --- Palette brute (8 couleurs) pour mesurer la dispersion ---
     let rawPalette;
     try {
         rawPalette = colorThief.getPalette(imgElement, 8);
@@ -172,8 +138,6 @@ function updateBackgroundFromCover(imgElement) {
         return;
     }
 
-    // --- Calcul de la dispersion colorimétrique ---
-    // Plus les couleurs sont éloignées, plus on demande une palette fine
     const pairs = [];
     for (let i = 0; i < rawPalette.length; i++) {
         for (let j = i + 1; j < rawPalette.length; j++) {
@@ -185,7 +149,6 @@ function updateBackgroundFromCover(imgElement) {
     }
     const avgDispersion = pairs.reduce((a, b) => a + b, 0) / pairs.length;
 
-    // Taille de palette adaptative
     let paletteSize;
     if      (avgDispersion < 50)  paletteSize = 4;
     else if (avgDispersion < 90)  paletteSize = 6;
@@ -199,8 +162,6 @@ function updateBackgroundFromCover(imgElement) {
         palette = rawPalette;
     }
 
-    // --- Scoring : on note chaque couleur ---
-    // Critères : dominance (position dans la palette), saturation, luminosité
     const scored = palette.map((c, i) => {
         const dominance  = 1 - (i / palette.length);
         const sat        = getSaturation(c) / 255;
@@ -210,10 +171,8 @@ function updateBackgroundFromCover(imgElement) {
         return { c, score };
     }).sort((a, b) => b.score - a.score);
 
-    // C1 = meilleur score global
     const newC1 = scored[0].c;
 
-    // C2 = couleur suffisamment différente de C1 et saturée
     const newC2 =
         scored.find(({ c }, i) => {
             if (i === 0) return false;
@@ -227,14 +186,11 @@ function updateBackgroundFromCover(imgElement) {
         scored[1]?.c ||
         newC1;
 
-    // C3 = couleur la plus sombre de la palette
     const newC3 = [...palette]
         .sort((a, b) => getLuminance(a) - getLuminance(b))[0];
 
-    // Luminance moyenne (pour calibrer le boost)
     const avgLum = palette.reduce((sum, c) => sum + getLuminance(c), 0) / palette.length;
 
-    // Lancer la transition
     startColorTransition(newC1, newC2, newC3, avgLum);
 }
 
@@ -242,11 +198,6 @@ function updateBackgroundFromCover(imgElement) {
 // MISE À JOUR DE L'INTERFACE
 // ========================================
 
-/**
- * Met à jour le titre, artiste, album, pochette
- * et l'état lecture/pause du tourne-disque.
- * @param {Object} data - Données de l'API /now-playing
- */
 function updateUI(data) {
     if (!data) return;
 
@@ -265,12 +216,20 @@ function updateUI(data) {
         RecordPlayer.setCover(newURL);
     }
 
-    // État lecture/pause (compatibilité avec plusieurs formats d'API)
+    // État lecture/pause
     const isPlaying = (data.is_playing === true || data.isPlaying === true || data.status === "playing");
     if (isPlaying) {
         RecordPlayer.play();
+        // Musique en cours → polling adapté au mode actuel
+        if      (screensaverActive) setPollRate(POLL_SCREENSAVER);
+        else if (document.hidden)   setPollRate(POLL_HIDDEN);
+        else if (ecoMode)           setPollRate(POLL_ECO);
+        else                        setPollRate(POLL_NORMAL);
     } else {
         RecordPlayer.pause();
+        // Rien ne joue → ralentir le polling
+        if (screensaverActive)      setPollRate(POLL_SCREENSAVER);
+        else                        setPollRate(POLL_PAUSED);
     }
 }
 
@@ -280,103 +239,138 @@ function updateUI(data) {
 const effects = ["float", "wave", "pulse"];
 let effectIndex = 0;
 
-/** Applique un effet de fond et met à jour le bouton */
 function applyEffect(name) {
     container.classList.remove("effect-float", "effect-wave", "effect-pulse");
     container.classList.add("effect-" + name);
     styleBtn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
 
-    // Réapplique les couleurs pour le nouvel effet
     if (currentBoosted.c1) {
         applyColorsRaw(currentBoosted.c1, currentBoosted.c2, currentBoosted.c3);
     }
 }
 
-// Cycle des effets au clic
 styleBtn.onclick = () => {
     effectIndex = (effectIndex + 1) % effects.length;
     applyEffect(effects[effectIndex]);
 };
 
-// Effet par défaut
 applyEffect("float");
 
 // ========================================
-// MODE ÉCO — idle / curseur masqué
+// POLLING INTELLIGENT
 // ========================================
-const IDLE_TIMEOUT = 8000;    // 8s sans interaction → mode éco
-const POLL_NORMAL  = 2000;
-const POLL_ECO     = 4000;    // 4s en éco (pas trop lent pour rester réactif)
+const POLL_NORMAL      = 2000;   // Musique en cours, app visible
+const POLL_ECO         = 4000;   // Mode éco activé
+const POLL_PAUSED      = 8000;   // Rien ne joue
+const POLL_SCREENSAVER = 10000;  // Screensaver actif
+const POLL_HIDDEN      = 15000;  // App minimisée / onglet caché
 
-let idleTimer      = null;
-let isIdle         = false;
-let pollInterval   = null;
+let ecoMode         = false;
+let pollInterval    = null;
 let currentPollRate = POLL_NORMAL;
-
-function enterEcoMode() {
-    if (isIdle) return;
-    isIdle = true;
-    document.body.classList.add("eco-mode");
-    setPollRate(POLL_ECO);
-}
-
-function exitEcoMode() {
-    if (!isIdle) return;
-    isIdle = false;
-    document.body.classList.remove("eco-mode");
-    setPollRate(POLL_NORMAL);
-    // Fetch immédiat pour réactivité
-    fetchNowPlaying();
-}
+let ecoHideTimer    = null;
 
 function setPollRate(rate) {
     if (rate === currentPollRate && pollInterval) return;
     currentPollRate = rate;
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(fetchNowPlaying, rate);
+    console.log(`⏱️ Polling → ${rate}ms`);
 }
 
-function resetIdleTimer() {
-    exitEcoMode();
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(enterEcoMode, IDLE_TIMEOUT);
-}
-
-["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
-    document.addEventListener(evt, resetIdleTimer, { passive: true });
+// App minimisée / restaurée
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        setPollRate(POLL_HIDDEN);
+        console.log('👁️ App masquée → polling 15s');
+    } else {
+        fetchNowPlaying(); // Refresh immédiat au retour
+        setPollRate(ecoMode ? POLL_ECO : POLL_NORMAL);
+        console.log('👁️ App visible → polling repris');
+    }
 });
 
 // ========================================
-// SCREENSAVER (Electron idle auto)
+// MODE ÉCO
 // ========================================
+
+if (window.vinylView?.ecoMode) {
+    window.vinylView.ecoMode((enabled) => {
+        ecoMode = enabled;
+        if (enabled) {
+            document.body.classList.add('eco-mode');
+            setPollRate(POLL_ECO);
+            console.log('🌿 Mode éco activé');
+        } else {
+            document.body.classList.remove('eco-mode');
+            document.body.classList.remove('eco-hover');
+            if (ecoHideTimer) clearTimeout(ecoHideTimer);
+            // Revenir au polling approprié
+            if      (screensaverActive) setPollRate(POLL_SCREENSAVER);
+            else if (document.hidden)   setPollRate(POLL_HIDDEN);
+            else                        setPollRate(POLL_NORMAL);
+            console.log('⚡ Mode éco désactivé');
+        }
+    });
+}
+
+// Réafficher les éléments au survol en mode éco
+document.addEventListener('mousemove', () => {
+    if (!ecoMode) return;
+
+    document.body.classList.add('eco-hover');
+
+    if (ecoHideTimer) clearTimeout(ecoHideTimer);
+    ecoHideTimer = setTimeout(() => {
+        document.body.classList.remove('eco-hover');
+    }, 3000);
+});
+
+// ========================================
+// SCREENSAVER (piloté par Electron)
+// ========================================
+let screensaverActive = false;
+
 if (window.vinylView?.onScreensaverActivate) {
     window.vinylView.onScreensaverActivate(() => {
         console.log("🌙 Screensaver activé");
-        document.body.classList.add("eco-mode");
+        screensaverActive = true;
+        document.body.classList.remove('eco-hover');
+        setPollRate(POLL_SCREENSAVER);
     });
 }
 
 if (window.vinylView?.onScreensaverDeactivate) {
     window.vinylView.onScreensaverDeactivate(() => {
         console.log("☀️ Screensaver désactivé");
-        document.body.classList.remove("eco-mode");
+        screensaverActive = false;
+        document.body.classList.remove('eco-hover');
+        fetchNowPlaying(); // Refresh immédiat au réveil
+        setPollRate(ecoMode ? POLL_ECO : POLL_NORMAL);
     });
 }
 
 // Sortir du screensaver au moindre input
 ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'].forEach(event => {
     document.addEventListener(event, () => {
-        window.electronAPI.sendUserActivity();
+        if (screensaverActive && window.vinylView?.deactivateScreensaver) {
+            window.vinylView.deactivateScreensaver();
+        } else if (window.vinylView?.sendUserActivity) {
+            window.vinylView.sendUserActivity();
+        }
     }, { passive: true });
 });
-
 
 // ========================================
 // INITIALISATION & BOUCLE PRINCIPALE
 // ========================================
 let authPopupOpened = false;
+let fetching = false;
 
 async function fetchNowPlaying() {
+    if (fetching) return;
+    fetching = true;
+
     try {
         const res = await fetch(`${BACKEND_BASE_URL}/now-playing`, {
             method: "GET",
@@ -402,6 +396,8 @@ async function fetchNowPlaying() {
         updateUI(data);
     } catch (e) {
         console.log("API hors ligne");
+    } finally {
+        fetching = false; // ← AJOUT
     }
 }
 
@@ -409,5 +405,4 @@ document.addEventListener("DOMContentLoaded", () => {
     RecordPlayer.init("record-player-container");
     fetchNowPlaying();
     pollInterval = setInterval(fetchNowPlaying, POLL_NORMAL);
-    idleTimer = setTimeout(enterEcoMode, IDLE_TIMEOUT);
 });

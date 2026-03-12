@@ -23,7 +23,7 @@
     cursor: none !important;
 }
 
-/* Masquer les contrôles en mode éco (PAS le player ni le fond) */
+/* Masquer les contrôles en mode éco */
 .eco-mode #title,
 .eco-mode #artist,
 .eco-mode #album,
@@ -34,13 +34,46 @@
     pointer-events: none;
 }
 
-/* Fond légèrement assombri, PAS noir */
+/* Fond légèrement assombri */
 .eco-mode #bg-container {
     filter: brightness(0.6);
     transition: filter 1s ease;
 }
 
-/* Réapparition fluide */
+/* Ralentir les animations en éco */
+.eco-mode canvas {
+    filter: brightness(0.7);
+}
+.eco-mode .screensaver-container {
+    animation-duration: 10s !important;
+}
+
+/* Réapparition au survol en mode éco */
+.eco-mode.eco-hover {
+    cursor: default !important;
+}
+.eco-mode.eco-hover * {
+    cursor: default !important;
+}
+
+.eco-mode.eco-hover #title,
+.eco-mode.eco-hover #artist,
+.eco-mode.eco-hover #album,
+.eco-mode.eco-hover #style-btn,
+.eco-mode.eco-hover .login-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.eco-mode.eco-hover #bg-container {
+    filter: brightness(1);
+}
+
+.eco-mode.eco-hover canvas {
+    filter: brightness(1);
+}
+
+/* Transitions fluides */
 #title, #artist, #album, #style-btn, .login-btn {
     transition: opacity 0.3s ease;
 }

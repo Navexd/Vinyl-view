@@ -1,11 +1,11 @@
-// main.js
-const { app, BrowserWindow, shell, powerMonitor, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, powerMonitor, Tray, Menu, nativeImage, ipcMain, screen } = require('electron');
 const { spawn } = require('child_process');
-const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { loadSettings, getSetting, setSetting, getAllSettings } = require('./settings');
 
 // --- Compat electron-is-dev robuste ---
+
 const _isDevRaw = require('electron-is-dev');
 const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDevRaw)
     ? _isDevRaw.default
@@ -15,41 +15,74 @@ const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDev
 let backend;
 let win;
 let tray;
-let idleCheckInterval;
-let screensaverAutoEnabled = true;
+let idleCheckInterval = null;
+let isScreensaverActive = false;
+let savedBounds = null;
+let fullscreenActivationTimer = null;
+let screensaverActivatedAt = 0;
 
 const BACKEND_BASE_URL = 'http://127.0.0.1:3000';
-const IDLE_TIMEOUT = 30; // secondes d'inactivité
+const SCREENSAVER_EXIT_GRACE_MS = 1000;
 
 //
 // -------- LOG SYSTEM --------
 //
 
-const logDir = path.join(app.getPath("userData"), "log");
+const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
+const LOG_LEVEL = isDev ? 'debug' : 'info';
 
+const logDir = path.join(app.getPath("userData"), "log");
 if (!fs.existsSync(logDir)) {
-    try { fs.mkdirSync(logDir, { recursive: true }); }
-    catch (e) { console.error("Erreur création logDir:", e); }
+    try { fs.mkdirSync(logDir, { recursive: true }); } catch {}
 }
 
 const logFile = path.join(logDir, "electron.log");
 
-function log(...args) {
-    const safe = args.map(a => {
-        try { return typeof a === "string" ? a : JSON.stringify(a); }
+// Rotation simple au démarrage (> 2 Mo → .old)
+try {
+    if (fs.existsSync(logFile) && fs.statSync(logFile).size > 2 * 1024 * 1024) {
+        const old = logFile + '.old';
+        if (fs.existsSync(old)) fs.unlinkSync(old);
+        fs.renameSync(logFile, old);
+    }
+} catch {}
+
+function log(category, level, ...args) {
+    if (LOG_LEVELS[level] == null) { args.unshift(level); level = 'info'; }
+    if (LOG_LEVELS[level] < LOG_LEVELS[LOG_LEVEL]) return;
+
+    const ts = new Date().toLocaleString('sv-SE', { hour12: false }).replace('T', ' ');
+    const tag = `[${ts}] [${category}] [${level.toUpperCase()}]`;
+    const msg = args.map(a => {
+        try { return typeof a === 'string' ? a : JSON.stringify(a); }
         catch { return String(a); }
-    }).join(" ");
+    }).join(' ');
 
-    try { fs.appendFileSync(logFile, safe + "\n"); }
-    catch (e) { console.error("LOG ERROR:", e); }
-
-    console.log(safe);
+    const line = `${tag} ${msg}`;
+    console.log(line);
+    try { fs.appendFileSync(logFile, line + '\n'); } catch {}
 }
 
-log("=== Electron démarré ===");
-log("isDev:", isDev);
-log("__dirname:", __dirname);
-log("process.resourcesPath:", process.resourcesPath);
+// Raccourcis par catégorie
+const logMain        = (...a) => log('main',        ...a);
+const logBackend     = (...a) => log('backend',     ...a);
+const logScreensaver = (...a) => log('screensaver', ...a);
+const logIdle        = (...a) => log('idle',        ...a);
+const logRenderer    = (...a) => log('renderer',    ...a);
+const logTray        = (...a) => log('tray',        ...a);
+const logSettings    = (...a) => log('settings',    ...a);
+const logSecurity    = (...a) => log('security',    ...a);
+const logWindow      = (...a) => log('window',      ...a);
+
+// IPC log depuis le renderer
+ipcMain.on('renderer-log', (_, category, level, msg) => {
+    log(category || 'renderer', level || 'info', msg);
+});
+
+logMain('info', '=== Electron démarré ===');
+logMain('info', 'isDev:', isDev);
+logMain('debug', '__dirname:', __dirname);
+logMain('debug', 'process.resourcesPath:', process.resourcesPath);
 
 //
 // -------- PATHS --------
@@ -75,9 +108,15 @@ function getPreloadPath() {
 }
 
 function getIconPath() {
-    return isDev
-        ? path.join(__dirname, "assets", "vinyl.png")
-        : path.join(process.resourcesPath, "assets", "vinyl.png");
+    const ext = process.platform === 'win32' ? 'ico' : 'png';
+    // On cherche album.ico sur Windows et album.png sur Linux
+    const iconName = `album.${ext}`;
+
+    if (isDev) {
+        return path.join(__dirname, "assets", iconName);
+    }
+
+    return path.join(process.resourcesPath, "assets", iconName);
 }
 
 function getTrayIconPath() {
@@ -100,44 +139,115 @@ function isAllowedUrl(targetUrl) {
     }
 }
 
+function canExitScreensaverNow() {
+    return Date.now() - screensaverActivatedAt >= SCREENSAVER_EXIT_GRACE_MS;
+}
+
 //
-// -------- SCREENSAVER HELPERS --------
+// -------- SHOW WINDOW --------
 //
 
 function showWindow() {
     if (!win) return;
-    win.setFullScreen(false);
     win.show();
     win.setSkipTaskbar(false);
     win.focus();
+}
+
+//
+// -------- SCREENSAVER --------
+//
+
+function getTargetDisplay() {
+    const choice = getSetting('screenChoice');
+    const displays = screen.getAllDisplays();
+    const primary = screen.getPrimaryDisplay();
+
+    if (choice === 'cursor') {
+        const cursor = screen.getCursorScreenPoint();
+        return screen.getDisplayNearestPoint(cursor);
+    }
+    if (choice === 'window' && win) {
+        const winBounds = win.getBounds();
+        const center = {
+            x: winBounds.x + winBounds.width / 2,
+            y: winBounds.y + winBounds.height / 2
+        };
+        return screen.getDisplayNearestPoint(center);
+    }
+    const index = parseInt(choice, 10);
+    if (!isNaN(index) && displays[index]) {
+        return displays[index];
+    }
+    return primary;
+}
+
+function clearFullscreenActivationTimer() {
+    if (fullscreenActivationTimer) {
+        clearTimeout(fullscreenActivationTimer);
+        fullscreenActivationTimer = null;
+    }
 }
 
 function activateScreensaver() {
-    if (!win) return;
-    log("🌙 Tentative activation screensaver...");
+    if (!win || isScreensaverActive) return;
 
-    win.setSkipTaskbar(false);
+    logScreensaver('info', 'Activation screensaver');
+    savedBounds = win.getBounds();
+    isScreensaverActive = true;
+    screensaverActivatedAt = Date.now();
+
+    const targetDisplay = getTargetDisplay();
+    const { x, y, width, height } = targetDisplay.bounds;
+    logScreensaver('debug', `Écran cible: ${width}x${height} @ ${x},${y}`);
+
     win.show();
-    win.restore();          // au cas où elle est minimisée
-    win.setFullScreen(true);
-    win.setAlwaysOnTop(true, 'screen-saver');  // passe au-dessus de tout
-    win.focus();
-    win.moveTop();
+    win.setSkipTaskbar(true);
+    win.setBounds({ x, y, width, height }, false);
 
-    // Retire le alwaysOnTop après 1s (pour pas bloquer l'utilisateur)
-    setTimeout(() => {
-        if (win) win.setAlwaysOnTop('normal');
-    }, 1000);
+    clearFullscreenActivationTimer();
+    fullscreenActivationTimer = setTimeout(() => {
+        if (win && isScreensaverActive) {
+            win.setFullScreen(true);
+            win.setAlwaysOnTop(true, 'screen-saver');
+            win.focus();
+            win.webContents.send('screensaver-activate');
+            logScreensaver('info', 'Fullscreen activé');
+        }
+    }, 300);
 
-    win.webContents.send('screensaver-activate');
-    log("🌙 Screensaver activé");
+    syncEcoModeToRenderer();
+    updateTrayMenu();
 }
 
 function deactivateScreensaver() {
-    if (!win) return;
-    log("☀️ Screensaver désactivé");
+    if (!win || !isScreensaverActive) return;
+
+    if (!canExitScreensaverNow()) {
+        logScreensaver('debug', 'Désactivation ignorée (grace period)');
+        return;
+    }
+
+    logScreensaver('info', 'Désactivation screensaver');
+    clearFullscreenActivationTimer();
+
+    isScreensaverActive = false;
+    screensaverActivatedAt = 0;
+
     win.setFullScreen(false);
+    win.setAlwaysOnTop(false);
+
+    if (savedBounds) {
+        win.setBounds(savedBounds, false);
+    }
+
+    win.show();
+    win.setSkipTaskbar(false);
+    win.focus();
     win.webContents.send('screensaver-deactivate');
+
+    syncEcoModeToRenderer();
+    updateTrayMenu();
 }
 
 //
@@ -145,40 +255,68 @@ function deactivateScreensaver() {
 //
 
 function getIdleTime() {
-    return powerMonitor.getSystemIdleTime();
+    try {
+        return powerMonitor.getSystemIdleTime();
+    } catch (e) {
+        logIdle('error', 'getSystemIdleTime indisponible:', e);
+        return 0;
+    }
 }
 
-let lastInputTime = Date.now();
+let notificationSent = false;
 
 function startIdleWatcher() {
-    // Écouter les événements d'entrée utilisateur sur la fenêtre
-    const resetIdle = () => { lastInputTime = Date.now(); };
+    if (idleCheckInterval) return;
 
-    win.on('move', resetIdle);
-    win.on('resize', resetIdle);
-    win.on('focus', resetIdle);
-
-    // Écouter depuis le renderer (souris/clavier)
-    ipcMain.on('user-activity', resetIdle);
+    logIdle('info', 'Idle watcher démarré');
+    notificationSent = false;
 
     idleCheckInterval = setInterval(() => {
-        const idleSeconds = Math.floor((Date.now() - lastInputTime) / 1000);
-        log(`🕐 Idle: ${idleSeconds}s | auto=${screensaverAutoEnabled}`);
+        if (!getSetting('screensaverAutoEnabled') || !win) return;
 
-        if (!screensaverAutoEnabled) return;
+        const idleSeconds = getIdleTime();
+        const timeout = getSetting('idleTimeoutSeconds');
+        const notifyEnabled = getSetting('notifyBeforeScreensaver');
+        const notifyDelay = 15;
 
-        if (idleSeconds >= IDLE_TIMEOUT && win && !win.isFullScreen()) {
-            log("💤 Activation screensaver");
-            activateScreensaver();
+        // Notification 15s avant
+        if (notifyEnabled && !notificationSent && !isScreensaverActive && idleSeconds >= (timeout - notifyDelay) && idleSeconds < timeout) {
+            const { Notification } = require('electron');
+            new Notification({
+                title: 'Vinyl View',
+                body: `Le screensaver s'active dans ${notifyDelay} secondes...`,
+                silent: true
+            }).show();
+            notificationSent = true;
+            logIdle('info', `Notification: screensaver dans ${notifyDelay}s`);
         }
-    }, 10000);
-}
 
+        // Activation screensaver
+        if (!isScreensaverActive && idleSeconds >= timeout) {
+            logIdle('info', `Idle ${idleSeconds}s >= ${timeout}s → activation screensaver`);
+            activateScreensaver();
+            syncEcoModeToRenderer();
+            return;
+        }
+
+        if (isScreensaverActive && idleSeconds < 1) {
+            logIdle('info', 'Reprise activité → désactivation screensaver');
+            deactivateScreensaver();
+            notificationSent = false;
+            syncEcoModeToRenderer();
+        }
+
+        if (idleSeconds < (timeout - notifyDelay)) {
+            notificationSent = false;
+        }
+    }, 1000);
+}
 
 function stopIdleWatcher() {
     if (idleCheckInterval) {
         clearInterval(idleCheckInterval);
         idleCheckInterval = null;
+        logIdle('info', 'Idle watcher arrêté');
     }
 }
 
@@ -187,8 +325,49 @@ function stopIdleWatcher() {
 //
 
 ipcMain.on('deactivate-screensaver', () => {
-    log("🖱 Activité détectée — désactivation screensaver");
+    logScreensaver('info', 'Désactivation demandée via IPC');
     deactivateScreensaver();
+});
+
+ipcMain.on('user-activity', () => {
+    if (isScreensaverActive && canExitScreensaverNow()) {
+        logScreensaver('info', 'Activité renderer détectée pendant screensaver');
+        deactivateScreensaver();
+    }
+});
+
+//
+// -------- IPC SETTINGS --------
+//
+
+ipcMain.handle('get-settings', () => {
+    return getAllSettings();
+});
+
+ipcMain.handle('set-setting', (event, key, value) => {
+    setSetting(key, value, log);
+    logSettings('info', `${key} = ${JSON.stringify(value)}`);
+
+    if (key === 'screensaverAutoEnabled') {
+        if (value) {
+            startIdleWatcher();
+        } else {
+            stopIdleWatcher();
+            if (isScreensaverActive) {
+                deactivateScreensaver();
+            }
+        }
+    }
+
+    if (key === 'launchAtStartup') {
+        app.setLoginItemSettings({
+            openAtLogin: value,
+            path: app.getPath('exe')
+        });
+        logSettings('info', `Lancement au démarrage: ${value ? 'ON' : 'OFF'}`);
+    }
+
+    return getAllSettings();
 });
 
 //
@@ -202,7 +381,7 @@ function createTray() {
     if (fs.existsSync(iconPath)) {
         icon = nativeImage.createFromPath(iconPath);
     } else {
-        log("⚠ Icône tray introuvable:", iconPath);
+        logTray('warn', 'Icône tray introuvable:', iconPath);
         icon = nativeImage.createEmpty();
     }
 
@@ -217,29 +396,183 @@ function createTray() {
 }
 
 function updateTrayMenu() {
+    const autoEnabled = getSetting('screensaverAutoEnabled');
+    const currentTimeout = getSetting('idleTimeoutSeconds');
+    const timeoutChoices = [
+        { label: '30 secondes', value: 30 },
+        { label: '1 minute', value: 60 },
+        { label: '2 minutes', value: 120 },
+        { label: '5 minutes', value: 300 },
+        { label: '10 minutes', value: 600 },
+    ];
+
+    const delayItems = autoEnabled ? [
+        { type: 'separator' },
+        { label: 'Délai inactivité', enabled: false },
+        ...timeoutChoices.map(choice => ({
+            label: `  ${choice.label}`,
+            type: 'radio',
+            checked: currentTimeout === choice.value,
+            click: () => {
+                setSetting('idleTimeoutSeconds', choice.value, log);
+                logTray('info', `Délai inactivité changé: ${choice.value}s`);
+                stopIdleWatcher();
+                startIdleWatcher();
+                updateTrayMenu();
+            }
+        }))
+    ] : [];
+
     const contextMenu = Menu.buildFromTemplate([
         {
             label: 'Afficher',
-            click: () => showWindow()
+            click: () => {
+                if (isScreensaverActive) {
+                    deactivateScreensaver();
+                }
+                showWindow();
+            }
         },
         {
-            label: 'Activer screensaver',
-            click: () => activateScreensaver()
+            label: isScreensaverActive ? 'Désactiver screensaver' : 'Activer screensaver',
+            click: () => {
+                if (isScreensaverActive) {
+                    deactivateScreensaver();
+                } else {
+                    activateScreensaver();
+                }
+                updateTrayMenu();
+            }
         },
         { type: 'separator' },
         {
-            label: `Screensaver auto : ${screensaverAutoEnabled ? 'ON' : 'OFF'}`,
-            click: () => {
-                screensaverAutoEnabled = !screensaverAutoEnabled;
-                updateTrayMenu();
-                log(`Screensaver auto: ${screensaverAutoEnabled ? 'ON' : 'OFF'}`);
+            label: '⚙ Paramètres',
+            submenu: [
+                {
+                    label: 'Mode auto',
+                    type: 'checkbox',
+                    checked: autoEnabled,
+                    click: (menuItem) => {
+                        setSetting('screensaverAutoEnabled', menuItem.checked, log);
+                        logTray('info', `Screensaver auto: ${menuItem.checked ? 'ON' : 'OFF'}`);
+                        if (menuItem.checked) {
+                            startIdleWatcher();
+                        } else {
+                            stopIdleWatcher();
+                            if (isScreensaverActive) deactivateScreensaver();
+                        }
+                        updateTrayMenu();
+                    }
+                },
+                ...delayItems,
+                { type: 'separator' },
+                {
+                    label: 'Notification avant screensaver',
+                    type: 'checkbox',
+                    checked: getSetting('notifyBeforeScreensaver'),
+                    click: (menuItem) => {
+                        setSetting('notifyBeforeScreensaver', menuItem.checked, log);
+                        logTray('info', `Notification: ${menuItem.checked ? 'ON' : 'OFF'}`);
+                        updateTrayMenu();
+                    }
+                },
+                {
+                    label: 'Mode économie (30fps)',
+                    type: 'checkbox',
+                    checked: getSetting('ecoMode'),
+                    click: (menuItem) => {
+                        setSetting('ecoMode', menuItem.checked, log);
+                        logTray('info', `Eco mode: ${menuItem.checked ? 'ON' : 'OFF'}`);
+                        syncEcoModeToRenderer();
+                        updateTrayMenu();
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Écran screensaver',
+                    submenu: (() => {
+                        const displays = screen.getAllDisplays();
+                        const current = getSetting('screenChoice');
+                        const items = [
+                            {
+                                label: 'Écran principal',
+                                type: 'radio',
+                                checked: current === 'primary',
+                                click: () => {
+                                    setSetting('screenChoice', 'primary', log);
+                                    logTray('info', 'Écran: principal');
+                                    updateTrayMenu();
+                                }
+                            },
+                            {
+                                label: 'Écran du curseur',
+                                type: 'radio',
+                                checked: current === 'cursor',
+                                click: () => {
+                                    setSetting('screenChoice', 'cursor', log);
+                                    logTray('info', 'Écran: curseur');
+                                    updateTrayMenu();
+                                }
+                            },
+                            {
+                                label: 'Écran de la fenêtre',
+                                type: 'radio',
+                                checked: current === 'window',
+                                click: () => {
+                                    setSetting('screenChoice', 'window', log);
+                                    logTray('info', 'Écran: fenêtre');
+                                    updateTrayMenu();
+                                }
+                            }
+                        ];
 
-                if (screensaverAutoEnabled) {
-                    startIdleWatcher();
-                } else {
-                    stopIdleWatcher();
+                        if (displays.length > 1) {
+                            items.push({ type: 'separator' });
+                            displays.forEach((display, index) => {
+                                const primary = display.id === screen.getPrimaryDisplay().id;
+                                const label = `Écran ${index + 1} (${display.bounds.width}x${display.bounds.height})${primary ? ' ★' : ''}`;
+                                items.push({
+                                    label,
+                                    type: 'radio',
+                                    checked: current === String(index),
+                                    click: () => {
+                                        setSetting('screenChoice', String(index), log);
+                                        logTray('info', `Écran: ${label}`);
+                                        updateTrayMenu();
+                                    }
+                                });
+                            });
+                        }
+
+                        return items;
+                    })()
+                },
+                { type: 'separator' },
+                {
+                    label: 'Lancer au démarrage',
+                    type: 'checkbox',
+                    checked: getSetting('launchAtStartup'),
+                    click: (menuItem) => {
+                        setSetting('launchAtStartup', menuItem.checked, log);
+                        app.setLoginItemSettings({
+                            openAtLogin: menuItem.checked,
+                            path: app.getPath('exe')
+                        });
+                        logTray('info', `Lancer au démarrage: ${menuItem.checked ? 'ON' : 'OFF'}`);
+                        updateTrayMenu();
+                    }
+                },
+                {
+                    label: 'Démarrer minimisé',
+                    type: 'checkbox',
+                    checked: getSetting('startMinimized'),
+                    click: (menuItem) => {
+                        setSetting('startMinimized', menuItem.checked, log);
+                        logTray('info', `Démarrer minimisé: ${menuItem.checked ? 'ON' : 'OFF'}`);
+                        updateTrayMenu();
+                    }
                 }
-            }
+            ]
         },
         { type: 'separator' },
         {
@@ -258,12 +591,26 @@ function updateTrayMenu() {
 // -------- ELECTRON WINDOW --------
 //
 
+function syncEcoModeToRenderer() {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('eco-mode-changed', getSetting('ecoMode'));
+}
+
 function createWindow() {
+    // 1. Définition du nom de bureau pour Linux
+    if (process.platform === 'linux') {
+        app.setDesktopName('vinyl-view');
+    }
+
+    // 2. Création de la fenêtre
     win = new BrowserWindow({
+        icon: getIconPath(),
         width: 1200,
         height: 800,
         show: false,
-        skipTaskbar: true,
+        skipTaskbar: false,
+        fullscreenable: true,
+        autoHideMenuBar: true,
         webPreferences: {
             preload: getPreloadPath(),
             nodeIntegration: false,
@@ -278,6 +625,17 @@ function createWindow() {
         win.removeMenu();
     }
 
+    win.on('enter-full-screen', () => {
+        logWindow('debug', 'enter-full-screen');
+        isScreensaverActive = true;
+        updateTrayMenu();
+    });
+
+    win.on('leave-full-screen', () => {
+        logWindow('debug', 'leave-full-screen');
+        updateTrayMenu();
+    });
+
     // F11 fullscreen support
     win.webContents.on('before-input-event', (event, input) => {
         if (input.key === 'F11' && input.type === 'keyDown') {
@@ -286,13 +644,17 @@ function createWindow() {
         }
     });
 
-    // Escape quitte le fullscreen et cache la fenêtre
+    // Escape quitte le fullscreen et désactive le screensaver si actif
     win.webContents.on('before-input-event', (event, input) => {
         if (input.key === 'Escape' && input.type === 'keyDown' && win.isFullScreen()) {
             event.preventDefault();
-            win.setFullScreen(false);
-            win.hide();
-            win.setSkipTaskbar(true);
+            if (isScreensaverActive) {
+                deactivateScreensaver();
+            } else {
+                win.setFullScreen(false);
+                win.hide();
+                win.setSkipTaskbar(true);
+            }
         }
     });
 
@@ -301,6 +663,7 @@ function createWindow() {
             return {
                 action: 'allow',
                 overrideBrowserWindowOptions: {
+                    icon: getIconPath(),
                     width: 500,
                     height: 700,
                     autoHideMenuBar: true,
@@ -313,21 +676,19 @@ function createWindow() {
                 }
             };
         }
-
-        log("⛔ Popup bloquée:", url);
+        logSecurity('warn', 'Popup bloquée:', url);
         return { action: 'deny' };
     });
 
     win.webContents.on('will-navigate', (event, url) => {
         const rendererPath = getRendererPath();
         const fileUrl = new URL(`file://${rendererPath}`);
-
         if (url !== fileUrl.href) {
             event.preventDefault();
             if (isAllowedUrl(url)) {
-                shell.openExternal(url).catch((err) => log("Erreur shell.openExternal:", err));
+                shell.openExternal(url).catch((err) => logWindow('error', 'Erreur shell.openExternal:', err));
             } else {
-                log("⛔ Navigation bloquée:", url);
+                logSecurity('warn', 'Navigation bloquée:', url);
             }
         }
     });
@@ -336,16 +697,19 @@ function createWindow() {
     win.on('close', (event) => {
         if (!app.isQuitting) {
             event.preventDefault();
+            if (isScreensaverActive) {
+                deactivateScreensaver();
+            }
             win.hide();
             win.setSkipTaskbar(true);
         }
     });
 
     const rendererPath = getRendererPath();
-    log("Renderer path:", rendererPath);
+    logWindow('info', 'Renderer path:', rendererPath);
 
     if (!fs.existsSync(rendererPath)) {
-        log("❌ Renderer introuvable");
+        logWindow('error', 'Renderer introuvable');
         win.loadURL(
             "data:text/html,<h1>Erreur: renderer introuvable</h1><p>" +
             rendererPath +
@@ -356,11 +720,18 @@ function createWindow() {
 
     try {
         win.loadFile(rendererPath);
+
+        win.webContents.on('did-finish-load', () => {
+            logWindow('info', 'Renderer chargé');
+            if (getSetting('ecoMode')) {
+                win.webContents.send('eco-mode-changed', true);
+            }
+        });
     } catch (e) {
-        log("Erreur loadFile:", e);
-        win.loadURL("data:text/html,<h1>Erreur lors du chargement du renderer</h1><pre>" + String(e) + "</pre>");
+        logWindow('error', 'Erreur chargement renderer:', e);
     }
 }
+
 
 //
 // -------- BACKEND LAUNCH --------
@@ -368,19 +739,19 @@ function createWindow() {
 
 function startBackend() {
     const backendPath = getBackendPath();
-    log("Backend path:", backendPath);
+    logBackend('info', 'Backend path:', backendPath);
 
     if (!fs.existsSync(backendPath)) {
-        log("❌ Backend introuvable !");
+        logBackend('error', 'Backend introuvable !');
         return;
     }
 
     if (process.platform !== "win32") {
         try {
             fs.chmodSync(backendPath, 0o755);
-            log("✔ Permissions OK pour le backend");
+            logBackend('debug', 'Permissions OK');
         } catch (e) {
-            log("⚠ Impossible de mettre +x :", e);
+            logBackend('warn', 'Impossible de mettre +x:', e);
         }
     }
 
@@ -390,10 +761,10 @@ function startBackend() {
         stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    backend.stdout.on("data", (d) => log("[backend]", d.toString()));
-    backend.stderr.on("data", (d) => log("[backend ERR]", d.toString()));
-    backend.on("close", (code, signal) => log("Backend arrêté, code:", code, "signal:", signal));
-    backend.on("error", (err) => log("Erreur lancement backend:", err));
+    backend.stdout.on("data", (d) => logBackend('info', d.toString().trim()));
+    backend.stderr.on("data", (d) => logBackend('error', d.toString().trim()));
+    backend.on("close", (code, signal) => logBackend('info', `Arrêté, code: ${code}, signal: ${signal}`));
+    backend.on("error", (err) => logBackend('error', 'Erreur lancement:', err));
 }
 
 //
@@ -407,11 +778,41 @@ app.on('before-quit', () => {
 });
 
 app.whenReady().then(() => {
+    loadSettings(log);
     startBackend();
     createWindow();
     createTray();
-    startIdleWatcher()
-    // Le idle watcher ne démarre que quand "Screensaver auto" est activé
+
+    screen.on('display-added', (event, newDisplay) => {
+        logMain('info', `Écran branché: ${newDisplay.id}`);
+        updateTrayMenu();
+    });
+
+    screen.on('display-removed', (event, oldDisplay) => {
+        logMain('info', `Écran débranché: ${oldDisplay.id}`);
+        const choice = getSetting('screenChoice');
+        const index = parseInt(choice, 10);
+        if (!isNaN(index) && !screen.getAllDisplays()[index]) {
+            setSetting('screenChoice', 'primary', log);
+            logMain('warn', 'Écran choisi disparu → retour écran principal');
+        }
+        updateTrayMenu();
+    });
+
+    if (getSetting('screensaverAutoEnabled')) {
+        startIdleWatcher();
+    }
+
+    app.setLoginItemSettings({
+        openAtLogin: getSetting('launchAtStartup'),
+        path: app.getPath('exe')
+    });
+
+    if (!getSetting('startMinimized')) {
+        logMain('info', 'Démarrage minimisé');
+    } else {
+        showWindow();
+    }
 
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -423,6 +824,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("quit", () => {
+    logMain('info', '=== Electron arrêté ===');
     stopIdleWatcher();
+    clearFullscreenActivationTimer();
     if (backend) backend.kill();
 });

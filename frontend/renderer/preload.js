@@ -18,5 +18,14 @@ contextBridge.exposeInMainWorld('vinylView', {
     },
     sendUserActivity() {
         ipcRenderer.send('user-activity');
-    }
+    },
+    getSettings() {
+        return ipcRenderer.invoke('get-settings');
+    },
+    setSetting(key, value) {
+        return ipcRenderer.invoke('set-setting', key, value);
+    },
+    // Dans le preload, expose :
+    ecoMode: (callback) => ipcRenderer.on('eco-mode-changed', (_, enabled) => callback(enabled)),
+
 });
