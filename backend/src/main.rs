@@ -14,6 +14,8 @@ use tokio::sync::Mutex;
 #[tokio::main]
 async fn main() {
     let _ = dotenv::dotenv();
+    logger::rotate_log();
+    log_to_file("main", "=== Backend démarré ===");
 
     let port: u16 = std::env::var("PORT")
         .ok()
@@ -23,9 +25,8 @@ async fn main() {
     let spotify = match auth::build_spotify(port).await {
         Ok(spotify) => spotify,
         Err(err) => {
-            let msg = format!("❌ Configuration Spotify invalide: {}", err);
-            log_to_file(&msg);
-            eprintln!("{}", msg);
+            log_to_file("main", &format!("Configuration Spotify invalide: {}", err));
+            eprintln!("Configuration Spotify invalide: {}", err);
             return;
         }
     };
@@ -38,6 +39,7 @@ async fn main() {
     if let Some(token) = load_token_from_file(&token_path_str).await {
         if let Ok(mut guard) = spotify.token.lock().await {
             *guard = Some(token);
+            log_to_file("token", "Token chargé depuis fichier");
         }
     }
 
@@ -47,10 +49,6 @@ async fn main() {
         .or(status_route(spotify.clone()))
         .or(done_route());
 
-    let msg = format!("✅ Backend lancé, en attente sur http://127.0.0.1:{}", port);
-    log_to_file(&msg);
-    println!("{}", msg);
-
+    log_to_file("main", &format!("En écoute sur http://127.0.0.1:{}", port));
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
-/* ok */

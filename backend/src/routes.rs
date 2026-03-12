@@ -1,10 +1,10 @@
 use warp::Filter;
 use rspotify::prelude::*;
 use rspotify::model::{AdditionalType, PlayableItem};
+use rspotify::AuthCodePkceSpotify;
 use crate::models::TrackInfo;
 use crate::token::save_token_to_file;
-use rspotify::AuthCodePkceSpotify;
-use crate::logger::{log_play, log_to_file};
+use crate::logger::log_to_file;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{Local, Duration as ChronoDuration, DateTime};
@@ -18,6 +18,14 @@ struct CallbackQuery {
     error: Option<String>,
 }
 
+lazy_static::lazy_static! {
+    static ref LAST_TRACK_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    static ref LAST_TRACK_START: Arc<Mutex<Option<DateTime<Local>>>> = Arc::new(Mutex::new(None));
+    static ref OAUTH_STATE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+}
+
+const CONFIRMATION_DELAY_SECS: i64 = 20;
+
 fn extract_query_param(url: &str, key: &str) -> Option<String> {
     let (_, query) = url.split_once('?')?;
     for pair in query.split('&') {
@@ -27,6 +35,16 @@ fn extract_query_param(url: &str, key: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn auth_required_reply() -> TrackInfo {
+    TrackInfo {
+        title: "Auth required".into(),
+        artist: "".into(),
+        album: "".into(),
+        cover_url: None,
+        is_playing: false,
+    }
 }
 
 pub fn login_route(
@@ -41,7 +59,7 @@ pub fn login_route(
             match spotify.get_authorize_url(None) {
                 Ok(url) => {
                     let Some(state) = extract_query_param(&url, "state") else {
-                        log_to_file("❌ Impossible de récupérer le state OAuth PKCE");
+                        log_to_file("auth", "Impossible de récupérer le state OAuth PKCE");
                         return Ok::<_, warp::reject::Rejection>(warp::reply::html(
                             "<h1>Erreur OAuth</h1><p>Impossible de démarrer l'authentification.</p>".to_string()
                         ));
@@ -52,27 +70,19 @@ pub fn login_route(
                         *state_guard = Some(state);
                     }
 
-                    log_to_file("✅ URL OAuth PKCE générée avec state");
+                    log_to_file("auth", "URL OAuth PKCE générée");
                     Ok::<_, warp::reject::Rejection>(warp::reply::html(format!(
-                        r#"
-                        <html>
-                          <head>
-                            <meta charset="utf-8">
-                            <title>Redirection Spotify</title>
-                            <script>
-                              window.location.href = "{url}";
-                            </script>
+                        r#"<html>
+                          <head><meta charset="utf-8"><title>Redirection Spotify</title>
+                            <script>window.location.href = "{url}";</script>
                           </head>
-                          <body>
-                            <p>Redirection vers Spotify...</p>
-                          </body>
-                        </html>
-                        "#,
+                          <body><p>Redirection vers Spotify...</p></body>
+                        </html>"#,
                         url = url
                     )))
                 }
-                Err(_) => {
-                    log_to_file("❌ Impossible de générer l'URL OAuth PKCE");
+                Err(e) => {
+                    log_to_file("auth", &format!("Impossible de générer l'URL OAuth PKCE: {}", e));
                     Ok::<_, warp::reject::Rejection>(warp::reply::html(
                         "<h1>Erreur OAuth</h1><p>Impossible de démarrer l'authentification.</p>".to_string()
                     ))
@@ -95,14 +105,14 @@ pub fn status_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = impl 
                     if let Some(token) = guard.as_ref() {
                         if token.is_expired() {
                             needs_refresh = true;
-                            log_to_file("⚠️ Token expiré → tentative de refresh...");
+                            log_to_file("token", "Token expiré, tentative de refresh");
                         }
                     } else {
-                        log_to_file("❌ Aucun token → auth required");
+                        log_to_file("status", "Aucun token → auth required");
                         return Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"));
                     }
                 } else {
-                    log_to_file("❌ Erreur d'accès au token → auth required");
+                    log_to_file("status", "Erreur d'accès au token → auth required");
                     return Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"));
                 }
             }
@@ -110,20 +120,20 @@ pub fn status_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = impl 
             if needs_refresh {
                 match timeout(Duration::from_secs(3), status_spotify.refresh_token()).await {
                     Ok(Ok(_)) => {
-                        log_to_file("✅ Refresh réussi → ready");
+                        log_to_file("token", "Refresh réussi");
                         Ok::<_, warp::reject::Rejection>(warp::reply::json(&"ready"))
                     }
-                    Ok(Err(_)) => {
-                        log_to_file("❌ Refresh échoué");
+                    Ok(Err(e)) => {
+                        log_to_file("token", &format!("Refresh échoué: {}", e));
                         Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"))
                     }
                     Err(_) => {
-                        log_to_file("⏱️ Timeout du refresh → auth required");
+                        log_to_file("token", "Timeout du refresh → auth required");
                         Ok::<_, warp::reject::Rejection>(warp::reply::json(&"auth required"))
                     }
                 }
             } else {
-                log_to_file("✅ Token valide → ready");
+                log_to_file("status", "Token valide → ready");
                 Ok::<_, warp::reject::Rejection>(warp::reply::json(&"ready"))
             }
         }
@@ -142,19 +152,13 @@ pub fn callback_route(
             let token_path = token_path.clone();
             async move {
                 if let Some(error) = params.error {
-                    log_to_file(&format!("❌ OAuth refusé ou invalide: {}", error));
-                    {
-                        let mut state_guard = OAUTH_STATE.lock().await;
-                        *state_guard = None;
-                    }
+                    log_to_file("auth", &format!("OAuth refusé: {}", error));
+                    *OAUTH_STATE.lock().await = None;
                     let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("OAuth error"));
                     return Ok::<_, warp::reject::Rejection>(reply);
                 }
 
-                let expected_state = {
-                    let state_guard = OAUTH_STATE.lock().await;
-                    state_guard.clone()
-                };
+                let expected_state = OAUTH_STATE.lock().await.clone();
 
                 match (
                     params.code.as_deref(),
@@ -171,34 +175,25 @@ pub fn callback_route(
                                         save_token_to_file(&token_path, token).await;
                                     }
                                 }
-
-                                {
-                                    let mut state_guard = OAUTH_STATE.lock().await;
-                                    *state_guard = None;
-                                }
+                                *OAUTH_STATE.lock().await = None;
+                                log_to_file("auth", "Callback réussi, token obtenu");
 
                                 let reply: Box<dyn warp::Reply> = Box::new(warp::redirect::temporary(
                                     warp::http::Uri::from_static("/done"),
                                 ));
                                 Ok::<_, warp::reject::Rejection>(reply)
                             }
-                            Err(_) => {
-                                log_to_file("❌ Échec de récupération du token Spotify");
-                                {
-                                    let mut state_guard = OAUTH_STATE.lock().await;
-                                    *state_guard = None;
-                                }
+                            Err(e) => {
+                                log_to_file("auth", &format!("Échec échange token: {}", e));
+                                *OAUTH_STATE.lock().await = None;
                                 let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Token exchange failed"));
                                 Ok::<_, warp::reject::Rejection>(reply)
                             }
                         }
                     }
                     _ => {
-                        log_to_file("❌ Callback OAuth invalide: state manquant ou incorrect");
-                        {
-                            let mut state_guard = OAUTH_STATE.lock().await;
-                            *state_guard = None;
-                        }
+                        log_to_file("auth", "Callback invalide: state manquant ou incorrect");
+                        *OAUTH_STATE.lock().await = None;
                         let reply: Box<dyn warp::Reply> = Box::new(warp::reply::html("Invalid callback"));
                         Ok::<_, warp::reject::Rejection>(reply)
                     }
@@ -206,14 +201,6 @@ pub fn callback_route(
             }
         })
 }
-
-lazy_static::lazy_static! {
-    static ref LAST_TRACK_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    static ref LAST_TRACK_START: Arc<Mutex<Option<DateTime<Local>>>> = Arc::new(Mutex::new(None));
-    static ref OAUTH_STATE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-}
-
-const CONFIRMATION_DELAY_SECS: i64 = 20;
 
 pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let np_spotify = spotify.clone();
@@ -227,54 +214,29 @@ pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = 
                     if let Some(token) = guard.as_ref() {
                         if token.is_expired() {
                             needs_refresh = true;
-                            log_play("⚠️ Token expiré → tentative de refresh...");
                         }
                     } else {
-                        log_play("❌ Aucun token → auth required");
-                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&TrackInfo {
-                            title: "Auth required".into(),
-                            artist: "".into(),
-                            album: "".into(),
-                            cover_url: None,
-                            is_playing: false,
-                        }));
+                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&auth_required_reply()));
                     }
                 } else {
-                    log_play("❌ Erreur d'accès au token → auth required");
-                    return Ok::<_, warp::reject::Rejection>(warp::reply::json(&TrackInfo {
-                        title: "Auth required".into(),
-                        artist: "".into(),
-                        album: "".into(),
-                        cover_url: None,
-                        is_playing: false,
-                    }));
+                    return Ok::<_, warp::reject::Rejection>(warp::reply::json(&auth_required_reply()));
                 }
             }
+
             if needs_refresh {
                 match timeout(Duration::from_secs(3), np_spotify.refresh_token()).await {
-                    Ok(Ok(_)) => log_play("✅ Refresh réussi"),
+                    Ok(Ok(_)) => log_to_file("spotify", "Refresh réussi"),
                     Ok(Err(_)) => {
-                        log_play("❌ Refresh échoué");
-                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&TrackInfo {
-                            title: "Auth required".into(),
-                            artist: "".into(),
-                            album: "".into(),
-                            cover_url: None,
-                            is_playing: false,
-                        }));
+                        log_to_file("spotify", "Refresh échoué");
+                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&auth_required_reply()));
                     }
                     Err(_) => {
-                        log_play("⏱️ Timeout du refresh → auth required");
-                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&TrackInfo {
-                            title: "Auth required".into(),
-                            artist: "".into(),
-                            album: "".into(),
-                            cover_url: None,
-                            is_playing: false,
-                        }));
+                        log_to_file("spotify", "Timeout du refresh");
+                        return Ok::<_, warp::reject::Rejection>(warp::reply::json(&auth_required_reply()));
                     }
                 }
             }
+
             let current = np_spotify.current_playing(None, Option::<Vec<&AdditionalType>>::None).await;
             let track_info = match current {
                 Ok(Some(ctx)) => {
@@ -282,9 +244,9 @@ pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = 
                     if let Some(PlayableItem::Track(track)) = ctx.item {
                         let info = TrackInfo {
                             title: track.name.clone(),
-                            artist: track.artists.get(0).map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".into()),
+                            artist: track.artists.first().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".into()),
                             album: track.album.name.clone(),
-                            cover_url: track.album.images.get(0).map(|img| img.url.clone()),
+                            cover_url: track.album.images.first().map(|img| img.url.clone()),
                             is_playing: playing,
                         };
 
@@ -294,28 +256,26 @@ pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = 
                         let mut last_id = LAST_TRACK_ID.lock().await;
                         let mut last_start = LAST_TRACK_START.lock().await;
                         if last_id.as_ref() != Some(&current_id) {
-                            log_play(&format!("🎵 Nouveau morceau : {}", current_id));
+                            log_to_file("spotify", &format!("Nouveau morceau: {}", current_id));
                             *last_id = Some(current_id.clone());
                             *last_start = Some(now);
                         } else if let Some(start_time) = *last_start {
                             let elapsed = now.signed_duration_since(start_time);
                             if elapsed >= ChronoDuration::seconds(CONFIRMATION_DELAY_SECS) {
-                                log_play(&format!("🎵 Lecture en cours : {}", current_id));
+                                log_to_file("spotify", &format!("Lecture confirmée: {}", current_id));
                                 *last_start = Some(now + ChronoDuration::seconds(9999));
                             }
                         }
                         info
                     } else {
-                        log_play("ℹ️ Aucun morceau en cours");
                         TrackInfo { title: "No track".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                     }
                 }
                 Ok(None) => {
-                    log_play("ℹ️ Rien n'est en cours de lecture");
                     TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
-                Err(_) => {
-                    log_play("❌ Erreur Spotify");
+                Err(e) => {
+                    log_to_file("spotify", &format!("Erreur API: {}", e));
                     TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
                 }
             };
@@ -333,12 +293,9 @@ pub fn done_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
               <body>
                 <h2>Connexion réussie à Spotify</h2>
                 <p>Vous pouvez fermer cette fenêtre.</p>
-                <script>
-                  setTimeout(() => window.close(), 1500);
-                </script>
+                <script>setTimeout(() => window.close(), 1500);</script>
               </body>
             </html>
         "#)
     })
 }
-/* ok */
