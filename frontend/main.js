@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { loadSettings, getSetting, setSetting, getAllSettings } = require('./settings');
+const settingsLog = (...args) => logSettings('info', ...args);
 
 // --- Compat electron-is-dev robuste ---
 
@@ -132,6 +133,7 @@ function isAllowedUrl(targetUrl) {
             url.origin === 'https://accounts.spotify.com' ||
             targetUrl.startsWith(`${BACKEND_BASE_URL}/login`) ||
             targetUrl.startsWith(`${BACKEND_BASE_URL}/callback`) ||
+            targetUrl.startsWith(`${BACKEND_BASE_URL}/status`) ||
             targetUrl.startsWith(`${BACKEND_BASE_URL}/done`)
         );
     } catch {
@@ -371,6 +373,43 @@ ipcMain.handle('set-setting', (event, key, value) => {
 });
 
 //
+// -------- SYSTEM INFO --------
+//
+async function getAboutInfo() {
+    const os = require('os');
+    const { screen } = require('electron');
+
+    let backendStatus = 'inconnu';
+    try {
+        const res = await fetch(`${BACKEND_BASE_URL}/status`, { signal: AbortSignal.timeout(3000) });
+        backendStatus = res.ok ? 'connecté' : 'erreur';
+    } catch {
+        backendStatus = 'déconnecté';
+    }
+
+    return {
+        appVersion: app.getVersion(),
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        node: process.versions.node,
+        os: `${os.type()} ${os.release()}`,
+        platform: process.platform,
+        arch: process.arch,
+        cpu: os.cpus()[0]?.model || 'inconnu',
+        cores: os.cpus().length,
+        ram: `${Math.round(os.totalmem() / 1024 / 1024 / 1024)} Go`,
+        ramFree: `${Math.round(os.freemem() / 1024 / 1024 / 1024)} Go`,
+        screens: screen.getAllDisplays().length,
+        uptime: `${Math.round(os.uptime() / 3600)}h`,
+        backend: backendStatus,
+        ecoMode: getSetting('ecoMode') || false,
+        autoMode: getSetting('screensaverAutoEnabled') || false,
+
+        isDev
+    };
+}
+
+//
 // -------- SYSTEM TRAY --------
 //
 
@@ -499,7 +538,7 @@ function updateTrayMenu() {
                                 type: 'radio',
                                 checked: current === 'primary',
                                 click: () => {
-                                    setSetting('screenChoice', 'primary', log);
+                                    setSetting('screenChoice', 'primary', settingsLog);
                                     logTray('info', 'Écran: principal');
                                     updateTrayMenu();
                                 }
@@ -576,6 +615,50 @@ function updateTrayMenu() {
         },
         { type: 'separator' },
         {
+            label: `Vinyl View v${app.getVersion()}`,
+            enabled: false
+        },
+        {
+            label: 'ℹ À propos / Debug',
+            click: async () => {
+                const info = await getAboutInfo();
+                const msg = [
+                    `🎵 Vinyl View v${info.appVersion}`,
+                    ``,
+                    `Electron: ${info.electron}`,
+                    `Chrome: ${info.chrome}`,
+                    `Node: ${info.node}`,
+                    `Mode: ${info.isDev ? 'Développement' : 'Production'}`,
+                    ``,
+                    `OS: ${info.os}`,
+                    `Plateforme: ${info.platform} (${info.arch})`,
+                    `CPU: ${info.cpu} (${info.cores} cœurs)`,
+                    `RAM: ${info.ramFree} libre / ${info.ram}`,
+                    `Écrans: ${info.screens}`,
+                    `Uptime système: ${info.uptime}`,
+                    ``,
+                    `Backend: ${info.backend}`,
+                    `Mode éco: ${info.ecoMode ? 'Actif' : 'Inactif'}`,
+                    `Mode auto: ${info.autoMode ? 'Actif' : 'Inactif'}`
+                ].join('\n');
+
+                const { dialog, clipboard } = require('electron');
+                const result = await dialog.showMessageBox({
+                    type: 'info',
+                    title: 'À propos — Vinyl View',
+                    message: `Vinyl View v${info.appVersion}`,
+                    detail: msg,
+                    buttons: ['OK', '📋 Copier'],
+                    defaultId: 0
+                });
+
+                if (result.response === 1) {
+                    clipboard.writeText(msg);
+                }
+            }
+        },
+        { type: 'separator' },
+        {
             label: 'Quitter',
             click: () => {
                 app.isQuitting = true;
@@ -627,7 +710,6 @@ function createWindow() {
 
     win.on('enter-full-screen', () => {
         logWindow('debug', 'enter-full-screen');
-        isScreensaverActive = true;
         updateTrayMenu();
     });
 
@@ -693,7 +775,7 @@ function createWindow() {
         }
     });
 
-    // Empêcher la fermeture — juste cacher
+    // Empêcher la fermeture — juste cacher + nettoyage IPC si quit
     win.on('close', (event) => {
         if (!app.isQuitting) {
             event.preventDefault();
@@ -702,6 +784,10 @@ function createWindow() {
             }
             win.hide();
             win.setSkipTaskbar(true);
+        } else {
+            // Nettoyage IPC pour éviter les fuites
+            ipcMain.removeAllListeners('user-activity');
+            ipcMain.removeAllListeners('deactivate-screensaver');
         }
     });
 
@@ -731,7 +817,6 @@ function createWindow() {
         logWindow('error', 'Erreur chargement renderer:', e);
     }
 }
-
 
 //
 // -------- BACKEND LAUNCH --------
@@ -778,7 +863,15 @@ app.on('before-quit', () => {
 });
 
 app.whenReady().then(() => {
-    loadSettings(log);
+    // --- Sécurité globale ---
+    app.on('web-contents-created', (_event, contents) => {
+        contents.on('will-attach-webview', (event) => {
+            event.preventDefault();
+            logSecurity('warn', 'Tentative webview bloquée');
+        });
+    });
+
+    loadSettings(settingsLog);
     startBackend();
     createWindow();
     createTray();
@@ -793,7 +886,7 @@ app.whenReady().then(() => {
         const choice = getSetting('screenChoice');
         const index = parseInt(choice, 10);
         if (!isNaN(index) && !screen.getAllDisplays()[index]) {
-            setSetting('screenChoice', 'primary', log);
+            setSetting('screenChoice', 'primary', settingsLog);
             logMain('warn', 'Écran choisi disparu → retour écran principal');
         }
         updateTrayMenu();

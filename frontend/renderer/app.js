@@ -201,12 +201,28 @@ function updateBackgroundFromCover(imgElement) {
 function updateUI(data) {
     if (!data) return;
 
-    // Textes
-    document.getElementById("title").textContent  = data.title  || "–";
-    document.getElementById("artist").textContent = data.artist || "–";
-    document.getElementById("album").textContent  = data.album  || "–";
+    const newTitle = data.title || "–";
+    const newArtist = data.artist || "–";
 
-    // Pochette (on ne recharge que si l'URL change)
+    // --- Transition douce si le morceau change ---
+    const titleEl  = document.getElementById("title");
+    const artistEl = document.getElementById("artist");
+    const albumEl  = document.getElementById("album");
+
+    const trackChanged = titleEl.textContent !== newTitle
+        || artistEl.textContent !== newArtist;
+
+    if (trackChanged) {
+        document.body.classList.add("track-changing");
+        setTimeout(() => {
+            titleEl.textContent  = newTitle;
+            artistEl.textContent = newArtist;
+            albumEl.textContent  = data.album || "–";
+            document.body.classList.remove("track-changing");
+        }, 400);
+    }
+
+    // --- Pochette ---
     const newURL = data.cover_url;
     if (newURL && newURL !== currentCoverURL) {
         currentCoverURL = newURL;
@@ -216,22 +232,25 @@ function updateUI(data) {
         RecordPlayer.setCover(newURL);
     }
 
-    // État lecture/pause
+    // --- État lecture/pause (visuel + polling) ---
     const isPlaying = (data.is_playing === true || data.isPlaying === true || data.status === "playing");
+
     if (isPlaying) {
+        document.body.classList.remove("is-paused");
         RecordPlayer.play();
-        // Musique en cours → polling adapté au mode actuel
         if      (screensaverActive) setPollRate(POLL_SCREENSAVER);
         else if (document.hidden)   setPollRate(POLL_HIDDEN);
         else if (ecoMode)           setPollRate(POLL_ECO);
         else                        setPollRate(POLL_NORMAL);
     } else {
+        document.body.classList.add("is-paused");
         RecordPlayer.pause();
-        // Rien ne joue → ralentir le polling
         if (screensaverActive)      setPollRate(POLL_SCREENSAVER);
         else                        setPollRate(POLL_PAUSED);
     }
 }
+
+
 
 // ========================================
 // EFFETS DE FOND (cycle au clic)
