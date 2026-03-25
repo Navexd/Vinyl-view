@@ -1,5 +1,5 @@
 // ========================================
-// app.js — Vinyl View
+// app.js — Vinyl View Version final 25/03/2026
 // Gère l'UI, l'extraction de couleurs,
 // les transitions de fond et le polling API
 // ========================================
@@ -237,7 +237,7 @@ function updateUI(data) {
 
     if (isPlaying) {
         document.body.classList.remove("is-paused");
-        RecordPlayer.play();
+        RecordPlayer.play(data.play_context || 'unknown');
         if      (screensaverActive) setPollRate(POLL_SCREENSAVER);
         else if (document.hidden)   setPollRate(POLL_HIDDEN);
         else if (ecoMode)           setPollRate(POLL_ECO);
@@ -258,22 +258,45 @@ function updateUI(data) {
 const effects = ["float", "wave", "pulse"];
 let effectIndex = 0;
 
-function applyEffect(name) {
+// Noms affichés dans le toast de thème
+const EFFECT_LABELS = {
+    float: '🌊 Float',
+    wave:  '〰️ Wave',
+    pulse: '💓 Pulse'
+};
+
+// Timer pour cacher le toast de thème
+let themeToastTimer = null;
+
+function applyEffect(name, showToast = false) {
     container.classList.remove("effect-float", "effect-wave", "effect-pulse");
     container.classList.add("effect-" + name);
-    styleBtn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
 
     if (currentBoosted.c1) {
         applyColorsRaw(currentBoosted.c1, currentBoosted.c2, currentBoosted.c3);
     }
+
+    // Toast indicateur de thème : s'affiche brièvement puis disparaît.
+    // Activé quand le changement vient d'une action utilisateur (1/2/3 ou clic).
+    if (showToast) {
+        let toast = document.getElementById('theme-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'theme-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = EFFECT_LABELS[name] || name;
+        toast.classList.add('visible');
+
+        clearTimeout(themeToastTimer);
+        themeToastTimer = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 2000);
+    }
 }
 
-styleBtn.onclick = () => {
-    effectIndex = (effectIndex + 1) % effects.length;
-    applyEffect(effects[effectIndex]);
-};
 
-applyEffect("float");
+applyEffect("float"); // démarrage sans toast
 
 // ========================================
 // POLLING INTELLIGENT
@@ -316,24 +339,27 @@ document.addEventListener('visibilitychange', () => {
 if (window.vinylView?.ecoMode) {
     window.vinylView.ecoMode((enabled) => {
         ecoMode = enabled;
+        if (typeof RecordPlayer !== 'undefined' && RecordPlayer.setEcoMode) {
+            RecordPlayer.setEcoMode(enabled);
+        }
+
         if (enabled) {
             document.body.classList.add('eco-mode');
             setPollRate(POLL_ECO);
-            console.log('🌿 Mode éco activé');
+            console.log('🌿 Mode éco activé — RAF throttlé à 30fps');
         } else {
             document.body.classList.remove('eco-mode');
             document.body.classList.remove('eco-hover');
             if (ecoHideTimer) clearTimeout(ecoHideTimer);
-            // Revenir au polling approprié
             if      (screensaverActive) setPollRate(POLL_SCREENSAVER);
             else if (document.hidden)   setPollRate(POLL_HIDDEN);
             else                        setPollRate(POLL_NORMAL);
-            console.log('⚡ Mode éco désactivé');
+            console.log('⚡ Mode éco désactivé — RAF retour 60fps');
         }
     });
 }
 
-// Réafficher les éléments au survol en mode éco
+
 document.addEventListener('mousemove', () => {
     if (!ecoMode) return;
 
@@ -369,8 +395,17 @@ if (window.vinylView?.onScreensaverDeactivate) {
     });
 }
 
-// Sortir du screensaver au moindre input
-['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'].forEach(event => {
+if (window.vinylView?.onScreensaverThemeChange) {
+    window.vinylView.onScreensaverThemeChange((themeIndex) => {
+        if (themeIndex >= 0 && themeIndex < effects.length) {
+            effectIndex = themeIndex;
+            applyEffect(effects[themeIndex], true); // true = afficher le toast
+        }
+    });
+}
+
+
+['mousemove', 'mousedown', 'scroll', 'touchstart'].forEach(event => {
     document.addEventListener(event, () => {
         if (screensaverActive && window.vinylView?.deactivateScreensaver) {
             window.vinylView.deactivateScreensaver();
@@ -378,6 +413,26 @@ if (window.vinylView?.onScreensaverDeactivate) {
             window.vinylView.sendUserActivity();
         }
     }, { passive: true });
+});
+
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === '1' || e.key === '2' || e.key === '3') {
+        if (!screensaverActive) {
+            const idx = parseInt(e.key, 10) - 1;
+            if (idx >= 0 && idx < effects.length) {
+                effectIndex = idx;
+                applyEffect(effects[idx], true);
+            }
+        }
+        return; // Dans tous les cas, 1/2/3 ne désactive jamais le screensaver
+    }
+    // Toute autre touche → sortie screensaver ou signal d'activité
+    if (screensaverActive && window.vinylView?.deactivateScreensaver) {
+        window.vinylView.deactivateScreensaver();
+    } else if (window.vinylView?.sendUserActivity) {
+        window.vinylView.sendUserActivity();
+    }
 });
 
 // ========================================
@@ -402,10 +457,26 @@ async function fetchNowPlaying() {
         if (data.title === "Auth required") {
             if (!authPopupOpened) {
                 authPopupOpened = true;
+
+                let popup;
                 if (window.vinylView?.openLogin) {
                     window.vinylView.openLogin();
                 } else {
-                    window.open(`${BACKEND_BASE_URL}/login`, "_blank", "width=500,height=700");
+                    popup = window.open(`${BACKEND_BASE_URL}/login`, "_blank", "width=500,height=700");
+                }
+
+                // Si l'utilisateur ferme la popup sans se connecter,
+                // on reset authPopupOpened pour permettre une nouvelle tentative
+                // au prochain cycle de polling.
+                if (popup) {
+                    const checkClosed = setInterval(() => {
+                        if (popup.closed) {
+                            clearInterval(checkClosed);
+                            authPopupOpened = false;
+                        }
+                    }, 1000);
+                } else {
+                    setTimeout(() => { authPopupOpened = false; }, 120_000);
                 }
             }
             return;
@@ -423,5 +494,6 @@ async function fetchNowPlaying() {
 document.addEventListener("DOMContentLoaded", () => {
     RecordPlayer.init("record-player-container");
     fetchNowPlaying();
-    pollInterval = setInterval(fetchNowPlaying, POLL_NORMAL);
+    // setPollRate gère l'unique interval — pas de double interval
+    setPollRate(POLL_NORMAL);
 });

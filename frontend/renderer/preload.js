@@ -1,3 +1,7 @@
+<!-- ======================== -->
+<!--  Version final preload 25/03/2026 -->
+<!-- ======================== -->
+
 const { contextBridge, ipcRenderer } = require('electron');
 
 const BACKEND_BASE_URL = 'http://127.0.0.1:3000';
@@ -27,5 +31,9 @@ contextBridge.exposeInMainWorld('vinylView', {
     },
     // Dans le preload, expose :
     ecoMode: (callback) => ipcRenderer.on('eco-mode-changed', (_, enabled) => callback(enabled)),
+
+    onScreensaverThemeChange(callback) {
+        ipcRenderer.on('screensaver-theme-change', (_, themeIndex) => callback(themeIndex));
+    },
 
 });
