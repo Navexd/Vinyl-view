@@ -1,6 +1,6 @@
 {
   "name": "vinyl-view",
-  "version": "3.4.9",
+  "version": "4.4.0",
   "description": "Spotify now-playing visualizer with animated vinyl turntable",
   "author": "Navexd",
   "license": "MIT",
@@ -15,13 +15,12 @@
     "build:all": "electron-builder --win --linux"
   },
 
-  "dependencies": {
-    "electron-is-dev": "^3.0.1"
-  },
+  "dependencies": {},
 
   "devDependencies": {
     "electron": "^39.2.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "electron-is-dev": "^3.0.1"
   },
 
   "build": {
@@ -35,6 +34,7 @@
     "files": [
       "main.js",
       "settings.js",
+      "src/**/*",
       "package.json",
       "!release/**/*",
       "!backend-linux/**/*",
@@ -55,16 +55,17 @@
       }
     ],
     "linux": {
-      "icon": "assets/albums.png",
+      "icon": "assets/album.png",
       "target": ["AppImage"],
       "category": "AudioVideo",
       "extraResources": [
         {
           "from": "backend-linux",
-          "to": "backend",
+          "to": "backend-linux",
           "filter": ["**/*"]
         }
-      ]
+      ],
+      "fileAssociations": []
     },
     "win": {
       "icon": "assets/album.ico",
@@ -72,7 +73,7 @@
       "extraResources": [
         {
           "from": "backend-win",
-          "to": "backend",
+          "to": "backend-win",
           "filter": ["**/*"]
         }
       ]
