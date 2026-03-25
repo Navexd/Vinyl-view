@@ -1,22 +1,19 @@
+// auth.rs Version final 25/03/2026
 use rspotify::{scopes, AuthCodePkceSpotify, Credentials, OAuth};
 use crate::token::{load_token_from_file, is_token_valid, get_token_path};
 use std::path::PathBuf;
 use dirs::config_dir;
-use std::env;
 
-const DEFAULT_SPOTIFY_CLIENT_ID: &str = "7243cb3c0cf649538b3120601a818b7b";
+const SPOTIFY_CLIENT_ID: &str = env!("SPOTIFY_CLIENT_ID",
+"SPOTIFY_CLIENT_ID doit être défini au build : \
+    SPOTIFY_CLIENT_ID=ton_id cargo build --release");
 
 pub async fn build_spotify(port: u16) -> Result<AuthCodePkceSpotify, String> {
-    let client_id = env::var("SPOTIFY_CLIENT_ID")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_SPOTIFY_CLIENT_ID.to_string());
+    let client_id = SPOTIFY_CLIENT_ID.to_string();
 
-    if client_id == DEFAULT_SPOTIFY_CLIENT_ID && DEFAULT_SPOTIFY_CLIENT_ID == "TON_CLIENT_ID_PUBLIC" {
-        return Err("SPOTIFY_CLIENT_ID non configuré".to_string());
+    if client_id.trim().is_empty() {
+        return Err("SPOTIFY_CLIENT_ID vide".to_string());
     }
-
-    // ... suite ...
 
     let creds = Credentials {
         id: client_id,
@@ -51,4 +48,3 @@ pub async fn build_spotify(port: u16) -> Result<AuthCodePkceSpotify, String> {
 
     Ok(spotify)
 }
-/* ok */

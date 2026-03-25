@@ -1,3 +1,4 @@
+//Main.rs Version final 25/03/2026
 mod auth;
 mod routes;
 mod models;
@@ -13,7 +14,6 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
-    let _ = dotenv::dotenv();
     logger::rotate_log();
     log_to_file("main", "=== Backend démarré ===");
 

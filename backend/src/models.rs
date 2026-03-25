@@ -1,3 +1,4 @@
+// models.rs Version final 25/03/2026
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -7,5 +8,5 @@ pub struct TrackInfo {
     pub album: String,
     pub cover_url: Option<String>,
     pub is_playing: bool,
+    pub play_context: String,
 }
-/* ok */

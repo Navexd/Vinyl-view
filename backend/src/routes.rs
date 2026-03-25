@@ -1,3 +1,4 @@
+// routes.rs Version final 25/03/2026
 use warp::Filter;
 use rspotify::prelude::*;
 use rspotify::model::{AdditionalType, PlayableItem};
@@ -7,7 +8,6 @@ use crate::token::save_token_to_file;
 use crate::logger::log_to_file;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use chrono::{Local, Duration as ChronoDuration, DateTime};
 use serde::Deserialize;
 use tokio::time::{timeout, Duration};
 
@@ -19,12 +19,8 @@ struct CallbackQuery {
 }
 
 lazy_static::lazy_static! {
-    static ref LAST_TRACK_ID: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    static ref LAST_TRACK_START: Arc<Mutex<Option<DateTime<Local>>>> = Arc::new(Mutex::new(None));
     static ref OAUTH_STATE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 }
-
-const CONFIRMATION_DELAY_SECS: i64 = 20;
 
 fn extract_query_param(url: &str, key: &str) -> Option<String> {
     let (_, query) = url.split_once('?')?;
@@ -44,6 +40,7 @@ fn auth_required_reply() -> TrackInfo {
         album: "".into(),
         cover_url: None,
         is_playing: false,
+        play_context: "unknown".into(),
     }
 }
 
@@ -242,41 +239,36 @@ pub fn now_playing_route(spotify: AuthCodePkceSpotify) -> impl Filter<Extract = 
                 Ok(Some(ctx)) => {
                     let playing = ctx.is_playing;
                     if let Some(PlayableItem::Track(track)) = ctx.item {
+                        let play_context = if ctx.context.as_ref().map(|c| c._type == rspotify::model::Type::Playlist).unwrap_or(false) {
+                            "playlist"
+                        } else {
+                            match track.album.album_type.as_deref() {
+                                Some("single") => "single",
+                                Some("album") | Some("compilation") => "album",
+                                _ => "unknown",
+                            }
+                        };
+
                         let info = TrackInfo {
                             title: track.name.clone(),
                             artist: track.artists.first().map(|a| a.name.clone()).unwrap_or_else(|| "Unknown".into()),
                             album: track.album.name.clone(),
                             cover_url: track.album.images.first().map(|img| img.url.clone()),
                             is_playing: playing,
+                            play_context: play_context.into(),
                         };
 
-                        let current_id = format!("{} - {} ({})", info.title, info.artist, info.album);
-                        let now = Local::now();
-
-                        let mut last_id = LAST_TRACK_ID.lock().await;
-                        let mut last_start = LAST_TRACK_START.lock().await;
-                        if last_id.as_ref() != Some(&current_id) {
-                            log_to_file("spotify", &format!("Nouveau morceau: {}", current_id));
-                            *last_id = Some(current_id.clone());
-                            *last_start = Some(now);
-                        } else if let Some(start_time) = *last_start {
-                            let elapsed = now.signed_duration_since(start_time);
-                            if elapsed >= ChronoDuration::seconds(CONFIRMATION_DELAY_SECS) {
-                                log_to_file("spotify", &format!("Lecture confirmée: {}", current_id));
-                                *last_start = Some(now + ChronoDuration::seconds(9999));
-                            }
-                        }
                         info
                     } else {
-                        TrackInfo { title: "No track".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
+                        TrackInfo { title: "No track".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false, play_context: "unknown".into() }
                     }
                 }
                 Ok(None) => {
-                    TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
+                    TrackInfo { title: "Not playing".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false, play_context: "unknown".into() }
                 }
                 Err(e) => {
                     log_to_file("spotify", &format!("Erreur API: {}", e));
-                    TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false }
+                    TrackInfo { title: "Error".into(), artist: "".into(), album: "".into(), cover_url: None, is_playing: false, play_context: "unknown".into() }
                 }
             };
 
