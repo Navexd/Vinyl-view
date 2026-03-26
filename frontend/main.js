@@ -1,6 +1,5 @@
 <!-- ======================== -->
-<!-- Main.js
-     Version final 25/03/2026 -->
+<!-- Main.js Version final 25/03/2026 -->
 <!-- ======================== -->
 // main.js
 const { app, BrowserWindow, screen, ipcMain } = require('electron');

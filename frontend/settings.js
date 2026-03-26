@@ -1,6 +1,5 @@
 <!-- ======================== -->
-<!-- Settings.js
- Version final 25/03/2026 -->
+<!-- Settings.js Version final 25/03/2026 -->
 <!-- ======================== -->
 
 const { app } = require('electron');
