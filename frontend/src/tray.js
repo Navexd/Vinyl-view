@@ -7,7 +7,6 @@ const { getTrayIconPath } = require('./utils');
 
 let tray = null;
 let win = null;
-let currentContextMenu = null; // Stocké pour popUpContextMenu sur Windows
 
 // Callbacks injectés depuis main.js
 let showWindowFn = () => {};
@@ -41,24 +40,9 @@ function createTray() {
 
     updateTrayMenu();
 
-    if (process.platform === 'win32') {
-        tray.on('click', () => {
-            if (screensaverModule?.getIsScreensaverActive()) {
-                screensaverModule.deactivateScreensaver();
-            }
-            showWindowFn();
-        });
-        tray.on('right-click', () => {
-            if (currentContextMenu) {
-                tray.popUpContextMenu(currentContextMenu);
-            }
-        });
-    } else {
-        // macOS / Linux : double-clic → fenêtre
-        tray.on('double-click', () => {
-            showWindowFn();
-        });
-    }
+    tray.on('double-click', () => {
+        showWindowFn();
+    });
 
     return tray;
 }
@@ -239,7 +223,7 @@ function updateTrayMenu() {
                 {
                     label: 'Démarrer minimisé',
                     type: 'checkbox',
-                    checked: !getSetting('startMinimized'),
+                    checked: getSetting('startMinimized'),
                     click: (menuItem) => {
                         setSetting('startMinimized', menuItem.checked, log);
                         logTray('info', `Démarrer minimisé: ${menuItem.checked ? 'ON' : 'OFF'}`);
@@ -254,46 +238,64 @@ function updateTrayMenu() {
             enabled: false
         },
         {
+            label: '⌨️ Raccourcis clavier',
+            click: () => {
+                const { dialog } = require('electron');
+                dialog.showMessageBox({
+                    type: 'info',
+                    title: 'Raccourcis clavier — Vinyl View',
+                    message: 'Raccourcis clavier',
+                    detail: [
+                        '1  →  Effet Float (fond animé)',
+                        '2  →  Effet Wave (fond animé)',
+                        '3  →  Effet Pulse (fond animé)',
+                        '',
+                        'F11      →  Plein écran',
+                        'Escape  →  Quitter le plein écran / screensaver',
+                        '',
+                        '💡 Les touches 1 / 2 / 3 fonctionnent',
+                        '    même en mode screensaver sans le désactiver.',
+                    ].join('\n'),
+                    buttons: ['OK'],
+                    defaultId: 0
+                });
+            }
+        },
+        {
             label: 'ℹ À propos / Debug',
             click: async () => {
                 const info = await getAboutInfoFn();
-                const backendLabel = info.backend === 'connecté' ? '✅ Connecté à Spotify' : '❌ Non connecté';
-                const autoLabel    = info.autoMode ? `Actif (${getSetting('idleTimeoutSeconds') / 60 >= 1 ? Math.round(getSetting('idleTimeoutSeconds') / 60) + ' min' : getSetting('idleTimeoutSeconds') + ' sec'})` : 'Désactivé';
-
-                const userDetail = [
-                    `Spotify : ${backendLabel}`,
+                const msg = [
+                    `🎵 Vinyl View v${info.appVersion}`,
                     ``,
-                    `Screensaver auto : ${autoLabel}`,
-                    `Mode éco : ${info.ecoMode ? 'Activé' : 'Désactivé'}`,
+                    `Electron: ${info.electron}`,
+                    `Chrome: ${info.chrome}`,
+                    `Node: ${info.node}`,
+                    `Mode: ${info.isDev ? 'Développement' : 'Production'}`,
                     ``,
-                    `Système : ${info.os}`,
-                    `RAM disponible : ${info.ramFree} / ${info.ram}`,
+                    `OS: ${info.os}`,
+                    `Plateforme: ${info.platform} (${info.arch})`,
+                    `CPU: ${info.cpu} (${info.cores} cœurs)`,
+                    `RAM: ${info.ramFree} libre / ${info.ram}`,
+                    `Écrans: ${info.screens}`,
+                    `Uptime système: ${info.uptime}`,
+                    ``,
+                    `Backend: ${info.backend}`,
+                    `Mode éco: ${info.ecoMode ? 'Actif' : 'Inactif'}`,
+                    `Mode auto: ${info.autoMode ? 'Actif' : 'Inactif'}`
                 ].join('\n');
 
                 const result = await dialog.showMessageBox({
                     type: 'info',
                     title: 'À propos — Vinyl View',
-                    message: `Vinyl View  v${info.appVersion}`,
-                    detail: userDetail,
-                    buttons: ['OK', 'Copier les infos de débogage'],
+                    message: `Vinyl View v${info.appVersion}`,
+                    detail: msg,
+                    buttons: ['OK', '📋 Copier'],
                     defaultId: 0
                 });
 
                 if (result.response === 1) {
-                    // Copie les infos complètes pour le support / débogage
-                    const debugMsg = [
-                        `Vinyl View v${info.appVersion}`,
-                        `Electron ${info.electron} | Chrome ${info.chrome} | Node ${info.node}`,
-                        `Mode: ${info.isDev ? 'Développement' : 'Production'}`,
-                        `OS: ${info.os} | ${info.platform} (${info.arch})`,
-                        `CPU: ${info.cpu} (${info.cores} cœurs)`,
-                        `RAM: ${info.ramFree} libre / ${info.ram}`,
-                        `Écrans: ${info.screens} | Uptime: ${info.uptime}`,
-                        `Backend: ${info.backend}`,
-                        `Mode éco: ${info.ecoMode ? 'Actif' : 'Inactif'}`,
-                        `Mode auto: ${info.autoMode ? 'Actif' : 'Inactif'}`,
-                    ].join('\n');
-                    require('electron').clipboard.writeText(debugMsg);
+                    require('electron').clipboard.writeText(msg);
                 }
             }
         },
@@ -307,12 +309,7 @@ function updateTrayMenu() {
         }
     ]);
 
-    currentContextMenu = contextMenu;
-
-    if (process.platform === 'win32') {
-    } else {
-        tray.setContextMenu(contextMenu);
-    }
+    tray.setContextMenu(contextMenu);
 }
 
 function getTray() {
