@@ -4,10 +4,8 @@ const path = require('path');
 const fs = require('fs');
 
 // --- Compat electron-is-dev robuste ---
-const _isDevRaw = require('electron-is-dev');
-const isDev = (_isDevRaw && typeof _isDevRaw === 'object' && 'default' in _isDevRaw)
-    ? _isDevRaw.default
-    : _isDevRaw;
+const isDev = !app.isPackaged;
+
 
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const LOG_LEVEL = isDev ? 'debug' : 'info';
