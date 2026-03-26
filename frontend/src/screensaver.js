@@ -2,7 +2,7 @@
 const { screen, powerMonitor, Notification, ipcMain } = require('electron');
 const { logScreensaver, logIdle } = require('./logger');
 const { getSetting } = require('../settings');
-const { canExitScreensaverNow, setScreensaverActivatedAt, getTrayIconPath } = require('./utils');
+const { canExitScreensaverNow, setScreensaverActivatedAt, getTrayIconPath, getIconPath } = require('./utils');
 
 let win = null;
 let isScreensaverActive = false;
@@ -77,13 +77,11 @@ function activateScreensaver() {
 
     win.show();
     win.setSkipTaskbar(true);
+
     if (win && !win.isDestroyed()) {
         win.webContents.send('fullscreen-transition-start');
     }
 
-    // Étape 2 : repositionner sur le bon écran SANS redimensionner
-    // On déplace juste le centre de la fenêtre sur l'écran cible.
-    // setFullScreen gérera lui-même l'expansion à la bonne résolution.
     const currentBounds = win.getBounds();
     const targetX = x + Math.floor(width / 2) - Math.floor(currentBounds.width / 2);
     const targetY = y + Math.floor(height / 2) - Math.floor(currentBounds.height / 2);
@@ -91,7 +89,7 @@ function activateScreensaver() {
 
     clearFullscreenActivationTimer();
 
-
+    // Étape 3 : fullscreen après 150ms (laisse le renderer freeze + position validée)
     fullscreenActivationTimer = setTimeout(() => {
         if (win && isScreensaverActive) {
             win.setFullScreen(true);
@@ -167,31 +165,17 @@ function startIdleWatcher() {
         const notifyDelay = 15;
 
         if (notifyEnabled && !notificationSent && !isScreensaverActive && idleSeconds >= (timeout - notifyDelay) && idleSeconds < timeout) {
-            if (process.platform === 'win32') {
-                // Windows : toastXml pour avoir l'icône app dans la notification.
-                // IMPORTANT : les backslashes Windows doivent être convertis en
-                // forward slashes pour être valides dans l'attribut src du XML.
-                const iconPath = getTrayIconPath().replace(/\\/g, '/');
-                const xml = [
-                    '<toast>',
-                    '  <visual>',
-                    '    <binding template="ToastGeneric">',
-                    `      <text>Vinyl View</text>`,
-                    `      <text>Le screensaver s'active dans ${notifyDelay} secondes...</text>`,
-                    `      <image placement="appLogoOverride" hint-crop="circle" src="${iconPath}"/>`,
-                    '    </binding>',
-                    '  </visual>',
-                    '  <audio silent="true"/>',
-                    '</toast>'
-                ].join('\n');
-                new Notification({ toastXml: xml }).show();
-            } else {
+            try {
+                // Utilise album.png (PNG requis, .ico mal supporté dans les toasts Windows)
+                const iconPath = getIconPath().replace(/\.ico$/, '.png');
                 new Notification({
                     title: 'Vinyl View',
                     body: `Le screensaver s'active dans ${notifyDelay} secondes...`,
-                    icon: getTrayIconPath(),
+                    icon: iconPath,
                     silent: true
                 }).show();
+            } catch (e) {
+                logIdle('warn', 'Notification impossible:', e.message);
             }
             notificationSent = true;
             logIdle('info', `Notification: screensaver dans ${notifyDelay}s`);
