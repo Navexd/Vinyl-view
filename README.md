@@ -218,7 +218,7 @@ Vinyl View is a **fully local application**. No data ever leaves your machine ex
 - **No analytics**, no telemetry, no external server
 - **Scopes used**: `user-read-currently-playing`, `user-read-playback-state` — read-only, minimal
 
-→ [Full Privacy Policy](https://navexd.github.io/privacy-policy)
+→ → [Full Privacy Policy](https://navexd.github.io/vinyl-view/privacypolicy.html)
 
 ---
 
