@@ -1,25 +1,23 @@
-<!-- ======================== -->
-<!-- Main.js Version final 25/03/2026 -->
-<!-- ======================== -->
 // main.js
 const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const { loadSettings, getSetting, setSetting } = require('./settings');
 const { logMain, logBackend, logSettings } = require('./src/logger');
-const { getBackendPath, getIconPath, getTrayIconPath } = require('./src/utils');
+const { getBackendPath, getIconPath, getRendererPath, getSetupPath, getSetupPreloadPath } = require('./src/utils');
 const windowModule = require('./src/window');
 const screensaver = require('./src/screensaver');
 const trayModule = require('./src/tray');
 const { getAboutInfo } = require('./src/ipc');
 
-
 if (process.platform === 'win32') {
     app.setAppUserModelId('Vinyl View');
 }
 
+// --- GPU flags ---
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
@@ -28,17 +26,13 @@ app.commandLine.appendSwitch('num-raster-threads', '4');
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
-
-
 if (process.platform === 'win32') {
     app.commandLine.appendSwitch('use-angle', 'd3d11');
     app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen');
     app.commandLine.appendSwitch('disable-background-timer-throttling');
 }
 
-// ── Flags Linux uniquement ─────────────────────────────
 if (process.platform === 'linux') {
-    // Accélération vidéo VA-API (optionnel, n'affecte pas le vinyle mais améliore le perf globale)
     app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
 }
 
@@ -46,9 +40,9 @@ const settingsLog = (...args) => logSettings('info', ...args);
 
 let backend = null;
 
-//
-// -------- AUTOLAUNCH --------
-//
+// ──────────────────────────────────────
+// AUTOLAUNCH
+// ──────────────────────────────────────
 
 function setAutoLaunch(enable) {
     if (process.platform === 'linux') {
@@ -79,9 +73,9 @@ Terminal=false
     }
 }
 
-//
-// -------- BACKEND LAUNCH --------
-//
+// ──────────────────────────────────────
+// BACKEND LAUNCH
+// ──────────────────────────────────────
 
 function startBackend() {
     const originalPath = getBackendPath();
@@ -93,8 +87,6 @@ function startBackend() {
     }
 
     let backendPath = originalPath;
-
-    // Sur Linux, si le fichier est en read-only (AppImage), copier dans un dossier writable
     if (process.platform !== "win32") {
         try {
             fs.chmodSync(backendPath, 0o755);
@@ -123,9 +115,74 @@ function startBackend() {
     backend.on("error", (err) => logBackend('error', 'Erreur lancement:', err));
 }
 
-//
-// -------- APP EVENTS --------
-//
+// ──────────────────────────────────────
+// IPC SETUP
+// ──────────────────────────────────────
+
+ipcMain.handle('setup-save-client-id', async (_event, clientId) => {
+    try {
+        const configDir = path.join(
+            process.platform === 'win32'
+                ? process.env.APPDATA || os.homedir()
+                : (process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')),
+            'vinyl-view'
+        );
+        fs.mkdirSync(configDir, { recursive: true });
+        const configPath = path.join(configDir, 'config.json');
+        fs.writeFileSync(configPath, JSON.stringify({ client_id: clientId }, null, 2));
+        logMain('info', 'Client ID sauvegardé');
+        return true;
+    } catch (e) {
+        logMain('error', 'Erreur sauvegarde Client ID:', e.message);
+        return false;
+    }
+});
+
+ipcMain.handle('setup-launch-app', async () => {
+    if (backend && !backend.killed) {
+        backend.kill('SIGTERM');
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    backend = null;
+    startBackend();
+    setTimeout(() => {
+        const currentWin = windowModule.getWin();
+        if (currentWin && !currentWin.isDestroyed()) {
+            currentWin.loadFile(getRendererPath());
+        }
+    }, 1500);
+    return true;
+});
+
+ipcMain.on('setup-open-external', (_event, url) => {
+    const { shell } = require('electron');
+    shell.openExternal(url);
+});
+
+// ──────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────
+
+function isClientIdConfigured() {
+    try {
+        const configDir = path.join(
+            process.platform === 'win32'
+                ? process.env.APPDATA || os.homedir()
+                : (process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')),
+            'vinyl-view'
+        );
+        const configPath = path.join(configDir, 'config.json');
+        if (!fs.existsSync(configPath)) return false;
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        return typeof config.client_id === 'string' && config.client_id.trim().length === 32;
+    } catch {
+        return false;
+    }
+}
+
+// ──────────────────────────────────────
+// APP EVENTS
+// ──────────────────────────────────────
 
 app.isQuitting = false;
 
@@ -145,7 +202,6 @@ app.whenReady().then(() => {
     loadSettings(settingsLog);
     startBackend();
 
-    // Initialiser window avec callbacks screensaver
     windowModule.init({
         updateTrayMenu: () => trayModule.updateTrayMenu(),
         getIsScreensaverActive: () => screensaver.getIsScreensaverActive(),
@@ -154,13 +210,11 @@ app.whenReady().then(() => {
 
     const win = windowModule.createWindow();
 
-    // Initialiser screensaver avec la fenêtre
     screensaver.init(win, {
         syncEco: () => windowModule.syncEcoModeToRenderer(),
         updateTray: () => trayModule.updateTrayMenu()
     });
 
-    // Initializer tray
     trayModule.init(win, {
         showWindow: () => windowModule.showWindow(),
         syncEcoModeToRenderer: () => windowModule.syncEcoModeToRenderer(),
@@ -170,7 +224,6 @@ app.whenReady().then(() => {
 
     trayModule.createTray();
 
-    // Surveillance écrans
     screen.on('display-added', (_event, newDisplay) => {
         logMain('info', `Écran branché: ${newDisplay.id}`);
         trayModule.updateTrayMenu();
@@ -193,14 +246,24 @@ app.whenReady().then(() => {
 
     setAutoLaunch(getSetting('launchAtStartup'));
 
-    if (!getSetting('startMinimized')) {
+    if (!isClientIdConfigured()) {
+        logMain('info', 'Aucun Client ID — affichage écran setup');
+        const setupPath = getSetupPath();
+        const setupPreloadPath = getSetupPreloadPath();
+        if (fs.existsSync(setupPath)) {
+            win.webContents.session.setPreloads([setupPreloadPath]);
+            win.loadFile(setupPath);
+        } else {
+            logMain('error', 'setup.html introuvable:', setupPath);
+        }
+        win.show();
+    } else if (!getSetting('startMinimized')) {
         windowModule.showWindow();
     } else {
         logMain('info', 'Démarrage minimisé — app en tray');
         setTimeout(() => {
             const { Notification } = require('electron');
             if (!Notification.isSupported()) return;
-            // getIconPath importé en haut du fichier — toujours disponible
             const iconPath = getIconPath().replace(/\.ico$/, '.png');
             try {
                 new Notification({

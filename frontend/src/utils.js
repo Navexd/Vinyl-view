@@ -5,7 +5,6 @@ const { isDev } = require('./logger');
 const BACKEND_BASE_URL = 'http://127.0.0.1:3000';
 const SCREENSAVER_EXIT_GRACE_MS = 1000;
 
-// Racine du projet (frontend/)
 const ROOT = path.join(__dirname, '..');
 
 let screensaverActivatedAt = 0;
@@ -28,6 +27,18 @@ function getPreloadPath() {
     return isDev
         ? path.join(ROOT, "renderer", "preload.js")
         : path.join(process.resourcesPath, "renderer", "preload.js");
+}
+
+function getSetupPath() {
+    return isDev
+        ? path.join(ROOT, "renderer", "setup.html")
+        : path.join(process.resourcesPath, "renderer", "setup.html");
+}
+
+function getSetupPreloadPath() {
+    return isDev
+        ? path.join(ROOT, "renderer", "preload-setup.js")
+        : path.join(process.resourcesPath, "renderer", "preload-setup.js");
 }
 
 function getIconPath() {
@@ -77,6 +88,8 @@ module.exports = {
     getBackendPath,
     getRendererPath,
     getPreloadPath,
+    getSetupPath,
+    getSetupPreloadPath,
     getIconPath,
     getTrayIconPath,
     isAllowedUrl,
