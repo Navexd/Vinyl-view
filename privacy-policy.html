@@ -5,95 +5,336 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Politique de confidentialité — Vinyl View</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            max-width: 720px;
-            margin: 60px auto;
-            padding: 0 24px;
-            color: #1a1a1a;
+            color: #e0e0e0;
+            background: #0d0d0d;
             line-height: 1.7;
+            min-height: 100vh;
         }
-        h1 { font-size: 1.8rem; margin-bottom: 4px; }
-        h2 { font-size: 1.1rem; margin-top: 36px; color: #333; }
-        .updated { color: #888; font-size: 0.9rem; margin-bottom: 40px; }
-        a { color: #1a1a1a; }
+
+        /* ── HERO ── */
+        .hero {
+            background: #0d0d0d;
+            padding: 80px 24px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 50% 80%, rgba(29,185,84,0.06) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* ── VINYL ICON ── */
+        .vinyl-icon {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            margin: 0 auto 28px;
+            position: relative;
+            background:
+                    radial-gradient(circle, #1DB954 12%, #169c46 13%, transparent 14%),
+                    radial-gradient(circle, transparent 14%, rgba(30,30,30,0.6) 14.5%, transparent 15%),
+                    radial-gradient(circle, transparent 20%, rgba(50,50,50,0.3) 20.3%, transparent 20.6%),
+                    radial-gradient(circle, transparent 27%, rgba(50,50,50,0.3) 27.3%, transparent 27.6%),
+                    radial-gradient(circle, transparent 34%, rgba(50,50,50,0.3) 34.3%, transparent 34.6%),
+                    radial-gradient(circle, transparent 41%, rgba(50,50,50,0.3) 41.3%, transparent 41.6%),
+                    conic-gradient(from 0deg, #1a1a1a, #2a2a2a, #1a1a1a, #2c2c2c, #1a1a1a, #2a2a2a, #1a1a1a, #2a2a2a, #1a1a1a);
+            box-shadow:
+                    0 0 0 3px #222,
+                    0 8px 40px rgba(0,0,0,0.5),
+                    0 0 60px rgba(29,185,84,0.1);
+            animation: spin 4s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hero h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .hero .updated {
+            color: rgba(255,255,255,0.35);
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: rgba(29,185,84,0.1);
+            border: 1px solid rgba(29,185,84,0.2);
+            color: #1DB954;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* ── CONTENT ── */
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        .highlight {
+            background: rgba(29,185,84,0.06);
+            border: 1px solid rgba(29,185,84,0.12);
+            border-left: 3px solid #1DB954;
+            padding: 28px;
+            border-radius: 0 12px 12px 0;
+            margin-bottom: 48px;
+            margin-left: -2px;
+            margin-right: 0;
+            width: calc(100% + 2px);
+            color: rgba(255,255,255,0.75);
+            font-size: 0.95rem;
+        }
+
+
+        .section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 28px 28px 24px;
+            margin-bottom: 20px;
+            position: relative;
+            transition: border-color 0.3s;
+        }
+
+        .section:hover {
+            border-color: rgba(29,185,84,0.2);
+        }
+
+        .section-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            background: #1DB954;
+            color: #000;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 8px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        h2 {
+            display: inline;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            vertical-align: middle;
+        }
+
+        .section p, .section ul {
+            margin-top: 14px;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.93rem;
+        }
+
         ul { padding-left: 20px; }
         li { margin-bottom: 6px; }
-        .highlight {
-            background: #f5f5f5;
-            border-left: 3px solid #1a1a1a;
-            padding: 12px 16px;
-            border-radius: 0 6px 6px 0;
-            margin: 20px 0;
+        li strong { color: rgba(255,255,255,0.85); }
+
+        code {
+            background: rgba(29,185,84,0.1);
+            color: #1DB954;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        a {
+            color: #1DB954;
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+
+        /* ── SCOPE GRID ── */
+        .scope-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .scope-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .scope-item code {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+        }
+
+        .scope-item span {
+            color: rgba(255,255,255,0.45);
+            font-size: 0.83rem;
+        }
+
+        /* ── FOOTER ── */
+        .footer {
+            text-align: center;
+            padding: 32px 24px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.25);
+            font-size: 0.85rem;
+        }
+
+        .footer a { color: rgba(255,255,255,0.4); }
+
+        @media (max-width: 600px) {
+            .hero { padding: 60px 20px 40px; }
+            .hero h1 { font-size: 1.7rem; }
+            .section { padding: 20px; }
+            .scope-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-<h1>Politique de confidentialité</h1>
-<p class="updated">Vinyl View — Dernière mise à jour : mars 2026</p>
-
-<div class="highlight">
-    Vinyl View est une application desktop locale. Elle n'utilise aucun serveur externe et ne transmet aucune donnée personnelle à des tiers.
+<div class="hero">
+    <div class="vinyl-icon"></div>
+    <h1>Politique de confidentialité</h1>
+    <p class="updated">Vinyl View — Dernière mise à jour : mars 2026</p>
+    <div class="badges">
+        <span class="badge">● Aucun serveur externe</span>
+        <span class="badge">● 100% local</span>
+        <span class="badge">● Open Source</span>
+    </div>
 </div>
 
-<h2>1. Qui sommes-nous</h2>
-<p>Vinyl View est développée par Navexd, à titre personnel. Contact : <a href="mailto:votre@email.com">votre@email.com</a></p>
+<div class="container">
 
-<h2>2. Données collectées</h2>
-<p>Vinyl View collecte uniquement les données strictement nécessaires à son fonctionnement :</p>
-<ul>
-    <li><strong>Token d'authentification Spotify</strong> — généré lors de la connexion OAuth, stocké localement sur votre appareil uniquement.</li>
-    <li><strong>Données de lecture en cours</strong> — titre, artiste, album et pochette du morceau en cours de lecture sur Spotify. Ces données sont affichées localement et jamais transmises.</li>
-</ul>
+    <div class="highlight">
+        Vinyl View est une application desktop locale. Elle n'utilise aucun serveur externe et ne transmet aucune donnée personnelle à des tiers.
+    </div>
 
-<h2>3. Comment les données sont utilisées</h2>
-<p>Les données récupérées via l'API Spotify sont utilisées exclusivement pour :</p>
-<ul>
-    <li>Afficher le morceau en cours de lecture dans l'interface de l'application</li>
-    <li>Animer le tourne-disque virtuel en fonction de l'état de lecture</li>
-</ul>
-<p>Aucune donnée n'est analysée, vendue, partagée ou transmise à un serveur externe.</p>
+    <div class="section">
+        <span class="section-number">1</span>
+        <h2>Qui suis-je</h2>
+        <p>Vinyl View est développée par Navexd, à titre personnel. Contact : <a href="mailto:nave.t972@outlook.fr">nave.t972@outlook.fr</a></p>
+    </div>
 
-<h2>4. Stockage des données</h2>
-<p>Le token OAuth Spotify est stocké localement dans :</p>
-<ul>
-    <li><strong>Linux / macOS</strong> : <code>~/.config/vinyl-view/token.json</code></li>
-    <li><strong>Windows</strong> : <code>%APPDATA%\vinyl-view\token.json</code></li>
-</ul>
-<p>Ce fichier reste sur votre appareil et n'est jamais transmis.</p>
+    <div class="section">
+        <span class="section-number">2</span>
+        <h2>Données collectées</h2>
+        <p>Vinyl View collecte uniquement les données strictement nécessaires à son fonctionnement :</p>
+        <ul>
+            <li><strong>Token d'authentification Spotify</strong> — généré lors de la connexion OAuth, stocké localement sur votre appareil uniquement.</li>
+            <li><strong>Données de lecture en cours</strong> — titre, artiste, album et pochette du morceau en cours de lecture sur Spotify. Ces données sont affichées localement et jamais transmises.</li>
+        </ul>
+    </div>
 
-<h2>5. Communication réseau</h2>
-<p>Vinyl View effectue uniquement les communications suivantes :</p>
-<ul>
-    <li><strong>API Spotify</strong> (<code>api.spotify.com</code>) — pour récupérer les informations du morceau en cours</li>
-    <li><strong>OAuth Spotify</strong> (<code>accounts.spotify.com</code>) — pour l'authentification initiale</li>
-    <li><strong>Localhost</strong> (<code>127.0.0.1:3000</code>) — communication interne entre le backend et l'interface de l'app</li>
-</ul>
-<p>Aucune autre communication réseau n'est établie.</p>
+    <div class="section">
+        <span class="section-number">3</span>
+        <h2>Comment les données sont utilisées</h2>
+        <p>Les données récupérées via l'API Spotify sont utilisées exclusivement pour :</p>
+        <ul>
+            <li>Afficher le morceau en cours de lecture dans l'interface de l'application</li>
+            <li>Animer le tourne-disque virtuel en fonction de l'état de lecture</li>
+        </ul>
+        <p>Aucune donnée n'est analysée, vendue, partagée ou transmise à un serveur externe.</p>
+    </div>
 
-<h2>6. Scopes Spotify utilisés</h2>
-<ul>
-    <li><code>user-read-currently-playing</code> — lire le morceau en cours de lecture</li>
-    <li><code>user-read-playback-state</code> — lire l'état de lecture (play/pause, contexte)</li>
-</ul>
-<p>Ces scopes sont les plus restrictifs possible pour le fonctionnement de l'application.</p>
+    <div class="section">
+        <span class="section-number">4</span>
+        <h2>Stockage des données</h2>
+        <p>Le token OAuth Spotify est stocké localement dans :</p>
+        <ul>
+            <li><strong>Linux / macOS</strong> : <code>~/.config/vinyl-view/token.json</code></li>
+            <li><strong>Windows</strong> : <code>%APPDATA%\vinyl-view\token.json</code></li>
+        </ul>
+        <p>Ce fichier reste sur votre appareil et n'est jamais transmis.</p>
+    </div>
 
-<h2>7. Suppression des données</h2>
-<p>Pour supprimer toutes les données stockées par Vinyl View :</p>
-<ul>
-    <li>Supprimez le dossier <code>~/.config/vinyl-view/</code> (Linux) ou <code>%APPDATA%\vinyl-view\</code> (Windows)</li>
-    <li>Révoquez l'accès de Vinyl View depuis <a href="https://www.spotify.com/account/apps/" target="_blank">votre compte Spotify</a></li>
-</ul>
+    <div class="section">
+        <span class="section-number">5</span>
+        <h2>Communication réseau</h2>
+        <p>Vinyl View effectue uniquement les communications suivantes :</p>
+        <ul>
+            <li><strong>API Spotify</strong> (<code>api.spotify.com</code>) — pour récupérer les informations du morceau en cours</li>
+            <li><strong>OAuth Spotify</strong> (<code>accounts.spotify.com</code>) — pour l'authentification initiale</li>
+            <li><strong>Localhost</strong> (<code>127.0.0.1:3000</code>) — communication interne entre le backend et l'interface</li>
+        </ul>
+        <p>Aucune autre communication réseau n'est établie.</p>
+    </div>
 
-<h2>8. Mineurs</h2>
-<p>Vinyl View ne collecte aucune donnée personnelle et ne cible pas spécifiquement les mineurs.</p>
+    <div class="section">
+        <span class="section-number">6</span>
+        <h2>Scopes Spotify utilisés</h2>
+        <div class="scope-grid">
+            <div class="scope-item">
+                <code>user-read-currently-playing</code>
+                <span>Lire le morceau en cours de lecture</span>
+            </div>
+            <div class="scope-item">
+                <code>user-read-playback-state</code>
+                <span>Lire l'état de lecture (play/pause)</span>
+            </div>
+        </div>
+        <p>Ces scopes sont les plus restrictifs possible pour le fonctionnement de l'application.</p>
+    </div>
 
-<h2>9. Modifications</h2>
-<p>Cette politique peut être mise à jour. La date de dernière modification est indiquée en haut de cette page.</p>
+    <div class="section">
+        <span class="section-number">7</span>
+        <h2>Suppression des données</h2>
+        <p>Pour supprimer toutes les données stockées par Vinyl View :</p>
+        <ul>
+            <li>Supprimez le dossier <code>~/.config/vinyl-view/</code> (Linux) ou <code>%APPDATA%\vinyl-view\</code> (Windows)</li>
+            <li>Révoquez l'accès depuis <a href="https://www.spotify.com/account/apps/" target="_blank">votre compte Spotify</a></li>
+        </ul>
+    </div>
 
-<h2>10. Contact</h2>
-<p>Pour toute question : <a href="mailto:votre@email.com">votre@email.com</a></p>
+    <div class="section">
+        <span class="section-number">8</span>
+        <h2>Mineurs</h2>
+        <p>Vinyl View ne collecte aucune donnée personnelle et ne cible pas spécifiquement les mineurs.</p>
+    </div>
+
+    <div class="section">
+        <span class="section-number">9</span>
+        <h2>Modifications</h2>
+        <p>Cette politique peut être mise à jour. La date de dernière modification est indiquée en haut de cette page.</p>
+    </div>
+
+    <div class="section">
+        <span class="section-number">10</span>
+        <h2>Contact</h2>
+        <p>Pour toute question : <a href="mailto:nave.t972@outlook.fr">nave.t972@outlook.fr</a></p>
+    </div>
+
+</div>
+
+<div class="footer">
+    <p>© 2026 Vinyl View — <a href="https://github.com/Navexd/Vinyl-view">GitHub</a></p>
+</div>
 
 </body>
 </html>
